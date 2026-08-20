@@ -66,17 +66,17 @@ public class AppDbContext : DbContext
             e.HasOne(r => r.Listing)
                 .WithMany(l => l.ExchangeRequests)
                 .HasForeignKey(r => r.ListingId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(r => r.Requester)
                 .WithMany(u => u.ExchangeRequests)
                 .HasForeignKey(r => r.RequesterId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(r => r.OfferedBook)
                 .WithMany(b => b.OfferedInRequests)
                 .HasForeignKey(r => r.OfferedBookId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<History>(e =>
