@@ -1,0 +1,65 @@
+name: bookmaster
+
+services:
+  # Step 1 of the README's Setup: "Create MySQL db, run Api/schema.sql."
+  mysql:
+    image: mysql:8.4
+    container_name: bookmaster-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # MySQL only runs files here on first start against an empty data dir -
+      # this is Api/schema.sql, run automatically instead of by hand.
+      - ./Api/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bookmaster-net
+
+  # Steps 2-3: connection string lives in Api/appsettings.json (edit it
+  # yourself before building - this container doesn't override it).
+  api:
+    build:
+      context: .
+      dockerfile: Api/Dockerfile
+    container_name: bookmaster-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks:
+      - bookmaster-net
+
+  # Steps 4-5: ApiBaseUrl lives in Mvc/appsettings.json (edit it yourself
+  # before building - this container doesn't override it).
+  mvc:
+    build:
+      context: .
+      dockerfile: Mvc/Dockerfile
+    container_name: bookmaster-mvc
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8081:8081"
+    networks:
+      - bookmaster-net
+
+volumes:
+  mysql-data:
+
+networks:
+  bookmaster-net:
+    driver: bridge
