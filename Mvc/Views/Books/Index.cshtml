@@ -1,11 +1,14 @@
 @model List<BookVm>
 <h1>Books</h1>
-<a href="/Books/Create">New Book</a>
+@if (User.Identity!.IsAuthenticated)
+{
+    <a href="/Books/Create">New Book</a>
+}
 <form method="get">
     <input type="text" name="search" placeholder="Search title" />
     <select name="categoryId">
         <option value="">All categories</option>
-        @foreach (var c in (List<CategoryVm>)ViewBag.Categories)
+        @foreach (var c in (ViewBag.Categories as List<CategoryVm>) ?? new List<CategoryVm>())
         {
             <option value="@c.Id">@c.Name</option>
         }
@@ -24,9 +27,13 @@
             <td>@b.Status</td>
             <td>
                 <a href="/Books/Details/@b.Id">View</a>
-                <form method="post" action="/Books/Delete/@b.Id" style="display:inline">
-                    <button type="submit">Delete</button>
-                </form>
+                @if (User.IsInRole("ADMIN"))
+                {
+                    <form method="post" action="/Books/Delete/@b.Id" style="display:inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit">Delete</button>
+                    </form>
+                }
             </td>
         </tr>
     }

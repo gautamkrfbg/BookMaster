@@ -1,0 +1,13 @@
+@model RegisterVm
+<h1>Register</h1>
+<div asp-validation-summary="All" class="error"></div>
+<form method="post" asp-action="Register">
+    <label>Name</label>
+    <input asp-for="Name" /><br />
+    <label>Email</label>
+    <input asp-for="Email" /><br />
+    <label>Password</label>
+    <input asp-for="Password" type="password" /><br />
+    <button type="submit">Create account</button>
+</form>
+<p>Already registered? <a href="/Auth/Login">Sign in</a></p>

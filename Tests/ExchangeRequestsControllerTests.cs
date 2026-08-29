@@ -12,8 +12,8 @@ public class ExchangeRequestsControllerTests
     private static async Task<(AppDbContext db, User owner, User requester, Category category, Book listedBook, Book offeredBook, ExchangeListing listing)> Seed()
     {
         var db = TestDbFactory.Create();
-        var owner = new User { Name = "Alice", Email = "alice@example.com" };
-        var requester = new User { Name = "Bob", Email = "bob@example.com" };
+        var owner = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        var requester = new User { Name = "Bob", Email = "bob@example.com", PasswordHash = "x", Role = "USER" };
         var category = new Category { Name = "Programming" };
         db.Users.AddRange(owner, requester);
         db.Categories.Add(category);
@@ -36,8 +36,9 @@ public class ExchangeRequestsControllerTests
     {
         var (db, owner, _, _, _, offeredBook, listing) = await Seed();
         var controller = new ExchangeRequestsController(db);
+        TestAuth.SetUser(controller, owner.Id, owner.Role, owner.Name);
 
-        var result = await controller.Create(new CreateExchangeRequestDto(listing.Id, owner.Id, offeredBook.Id));
+        var result = await controller.Create(new CreateExchangeRequestDto(listing.Id, offeredBook.Id));
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
@@ -48,10 +49,12 @@ public class ExchangeRequestsControllerTests
         var (db, owner, requester, _, listedBook, offeredBook, listing) = await Seed();
         var requestsController = new ExchangeRequestsController(db);
 
-        var createResult = await requestsController.Create(new CreateExchangeRequestDto(listing.Id, requester.Id, offeredBook.Id));
+        TestAuth.SetUser(requestsController, requester.Id, requester.Role, requester.Name);
+        var createResult = await requestsController.Create(new CreateExchangeRequestDto(listing.Id, offeredBook.Id));
         var created = Assert.IsType<CreatedAtActionResult>(createResult.Result);
         var requestDto = Assert.IsType<ExchangeRequestDto>(created.Value);
 
+        TestAuth.SetUser(requestsController, owner.Id, owner.Role, owner.Name);
         var acceptResult = await requestsController.Accept(requestDto.Id);
         Assert.IsType<NoContentResult>(acceptResult);
 
@@ -68,18 +71,83 @@ public class ExchangeRequestsControllerTests
     }
 
     [Fact]
-    public async Task Accept_ReturnsConflict_WhenRequestAlreadyProcessed()
+    public async Task Accept_ReturnsForbidden_WhenNotListingOwner()
     {
         var (db, _, requester, _, _, offeredBook, listing) = await Seed();
         var controller = new ExchangeRequestsController(db);
 
-        var createResult = await controller.Create(new CreateExchangeRequestDto(listing.Id, requester.Id, offeredBook.Id));
+        TestAuth.SetUser(controller, requester.Id, requester.Role, requester.Name);
+        var createResult = await controller.Create(new CreateExchangeRequestDto(listing.Id, offeredBook.Id));
         var created = Assert.IsType<CreatedAtActionResult>(createResult.Result);
         var requestDto = Assert.IsType<ExchangeRequestDto>(created.Value);
 
+        var acceptResult = await controller.Accept(requestDto.Id);
+        Assert.IsType<ForbidResult>(acceptResult);
+    }
+
+    [Fact]
+    public async Task Accept_ReturnsConflict_WhenRequestAlreadyProcessed()
+    {
+        var (db, owner, requester, _, _, offeredBook, listing) = await Seed();
+        var controller = new ExchangeRequestsController(db);
+
+        TestAuth.SetUser(controller, requester.Id, requester.Role, requester.Name);
+        var createResult = await controller.Create(new CreateExchangeRequestDto(listing.Id, offeredBook.Id));
+        var created = Assert.IsType<CreatedAtActionResult>(createResult.Result);
+        var requestDto = Assert.IsType<ExchangeRequestDto>(created.Value);
+
+        TestAuth.SetUser(controller, owner.Id, owner.Role, owner.Name);
         await controller.Accept(requestDto.Id);
         var secondAccept = await controller.Accept(requestDto.Id);
 
         Assert.IsType<ConflictObjectResult>(secondAccept);
+    }
+
+    [Fact]
+    public async Task Accept_ReturnsConflict_WhenOfferedBookAlreadyExchanged()
+    {
+        var (db, owner, requester, _, _, offeredBook, listing) = await Seed();
+        var controller = new ExchangeRequestsController(db);
+
+        TestAuth.SetUser(controller, requester.Id, requester.Role, requester.Name);
+        var createResult = await controller.Create(new CreateExchangeRequestDto(listing.Id, offeredBook.Id));
+        var created = Assert.IsType<CreatedAtActionResult>(createResult.Result);
+        var requestDto = Assert.IsType<ExchangeRequestDto>(created.Value);
+
+        offeredBook.Status = BookStatus.Exchanged;
+        await db.SaveChangesAsync();
+
+        TestAuth.SetUser(controller, owner.Id, owner.Role, owner.Name);
+        var acceptResult = await controller.Accept(requestDto.Id);
+
+        Assert.IsType<ConflictObjectResult>(acceptResult);
+    }
+
+    [Fact]
+    public async Task Reject_ReturnsForbidden_WhenNotListingOwner()
+    {
+        var (db, _, requester, _, _, offeredBook, listing) = await Seed();
+        var controller = new ExchangeRequestsController(db);
+
+        TestAuth.SetUser(controller, requester.Id, requester.Role, requester.Name);
+        var createResult = await controller.Create(new CreateExchangeRequestDto(listing.Id, offeredBook.Id));
+        var created = Assert.IsType<CreatedAtActionResult>(createResult.Result);
+        var requestDto = Assert.IsType<ExchangeRequestDto>(created.Value);
+
+        var rejectResult = await controller.Reject(requestDto.Id);
+
+        Assert.IsType<ForbidResult>(rejectResult);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsUnauthorized_WhenTokenSubjectUserNoLongerExists()
+    {
+        var (db, _, _, _, _, _, listing) = await Seed();
+        var controller = new ExchangeRequestsController(db);
+        TestAuth.SetUser(controller, 99999, "USER", "Ghost");
+
+        var result = await controller.Create(new CreateExchangeRequestDto(listing.Id, 1));
+
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
     }
 }

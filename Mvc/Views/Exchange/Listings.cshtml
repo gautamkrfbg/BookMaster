@@ -1,10 +1,26 @@
 @model List<ExchangeListingVm>
 <h1>Exchange Listings</h1>
-<a href="/Exchange/CreateListing">New Listing</a>
+@if (User.Identity!.IsAuthenticated)
+{
+    <a href="/Exchange/CreateListing">New Listing</a>
+}
 <table>
-    <tr><th>Id</th><th>Book Id</th><th>Wanted Type</th></tr>
+    <tr><th>Id</th><th>Book Id</th><th>Wanted Type</th><th></th></tr>
     @foreach (var l in Model)
     {
-        <tr><td>@l.Id</td><td>@l.BookId</td><td>@l.WantedType</td></tr>
+        <tr>
+            <td>@l.Id</td>
+            <td>@l.BookId</td>
+            <td>@l.WantedType</td>
+            <td>
+                @if (User.IsInRole("ADMIN"))
+                {
+                    <form method="post" action="/Exchange/DeleteListing/@l.Id" style="display:inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit">Delete</button>
+                    </form>
+                }
+            </td>
+        </tr>
     }
 </table>

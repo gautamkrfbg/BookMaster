@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,10 +18,10 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore
-        run: dotnet restore Tests/BookMaster.Tests.csproj
+        run: dotnet restore BookMaster.sln
 
       - name: Build
-        run: dotnet build Tests/BookMaster.Tests.csproj --no-restore --configuration Release
+        run: dotnet build BookMaster.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test Tests/BookMaster.Tests.csproj --no-build --configuration Release --verbosity normal
+        run: dotnet test Tests/BookMaster.Tests.csproj --configuration Release --no-build --verbosity normal

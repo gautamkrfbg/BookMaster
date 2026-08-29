@@ -2,18 +2,12 @@
 <h1>New Book</h1>
 <div asp-validation-summary="All" class="error"></div>
 <form method="post">
+    @Html.AntiForgeryToken()
     <label>Title</label>
     <input asp-for="Title" /><br />
-    <label>Owner</label>
-    <select asp-for="OwnerId">
-        @foreach (var u in (List<UserVm>)ViewBag.Users)
-        {
-            <option value="@u.Id">@u.Name</option>
-        }
-    </select><br />
     <label>Category</label>
     <select asp-for="CategoryId">
-        @foreach (var c in (List<CategoryVm>)ViewBag.Categories)
+        @foreach (var c in (ViewBag.Categories as List<CategoryVm>) ?? new List<CategoryVm>())
         {
             <option value="@c.Id">@c.Name</option>
         }

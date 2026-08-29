@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using BookMaster.Mvc.Models;
 using BookMaster.Mvc.Services;
@@ -23,28 +24,31 @@ public class BooksController : Controller
         return View(book);
     }
 
+    [Authorize]
     public async Task<IActionResult> Create()
     {
-        ViewBag.Users = await _api.GetUsersAsync();
         ViewBag.Categories = await _api.GetCategoriesAsync();
         return View();
     }
 
+    [Authorize]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CreateBookVm book)
     {
         var response = await _api.CreateBookAsync(book);
         if (!response.IsSuccessStatusCode)
         {
             ModelState.AddModelError(string.Empty, "Could not create book.");
-            ViewBag.Users = await _api.GetUsersAsync();
             ViewBag.Categories = await _api.GetCategoriesAsync();
             return View(book);
         }
         return RedirectToAction(nameof(Index));
     }
 
+    [Authorize(Roles = "ADMIN")]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(long id)
     {
         await _api.DeleteBookAsync(id);

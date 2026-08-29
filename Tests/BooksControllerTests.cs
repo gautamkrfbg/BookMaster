@@ -12,7 +12,7 @@ public class BooksControllerTests
     private static async Task<(AppDbContext db, User user, Category category)> Seed()
     {
         var db = TestDbFactory.Create();
-        var user = new User { Name = "Alice", Email = "alice@example.com" };
+        var user = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
         var category = new Category { Name = "Programming" };
         db.Users.Add(user);
         db.Categories.Add(category);
@@ -21,26 +21,29 @@ public class BooksControllerTests
     }
 
     [Fact]
-    public async Task Create_ReturnsBadRequest_WhenOwnerMissing()
+    public async Task Create_ReturnsBadRequest_WhenCategoryMissing()
     {
-        var (db, _, category) = await Seed();
+        var (db, user, _) = await Seed();
         var controller = new BooksController(db);
+        TestAuth.SetUser(controller, user.Id, user.Role, user.Name);
 
-        var result = await controller.Create(new CreateBookDto("Clean Code", 999, category.Id));
+        var result = await controller.Create(new CreateBookDto("Clean Code", 999));
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
     }
 
     [Fact]
-    public async Task Create_SetsStatusOwned_WhenValid()
+    public async Task Create_SetsCurrentUserAsOwner()
     {
         var (db, user, category) = await Seed();
         var controller = new BooksController(db);
+        TestAuth.SetUser(controller, user.Id, user.Role, user.Name);
 
-        var result = await controller.Create(new CreateBookDto("Clean Code", user.Id, category.Id));
+        var result = await controller.Create(new CreateBookDto("Clean Code", category.Id));
 
         var created = Assert.IsType<CreatedAtActionResult>(result.Result);
         var dto = Assert.IsType<BookDto>(created.Value);
+        Assert.Equal(user.Id, dto.OwnerId);
         Assert.Equal(BookStatus.Owned, dto.Status);
     }
 
@@ -58,5 +61,29 @@ public class BooksControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var books = Assert.IsAssignableFrom<IEnumerable<BookDto>>(ok.Value);
         Assert.Single(books);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsBadRequest_WhenTitleIsWhitespace()
+    {
+        var (db, user, category) = await Seed();
+        var controller = new BooksController(db);
+        TestAuth.SetUser(controller, user.Id, user.Role, user.Name);
+
+        var result = await controller.Create(new CreateBookDto("   ", category.Id));
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsUnauthorized_WhenTokenSubjectUserNoLongerExists()
+    {
+        var (db, _, category) = await Seed();
+        var controller = new BooksController(db);
+        TestAuth.SetUser(controller, 99999, "USER", "Ghost");
+
+        var result = await controller.Create(new CreateBookDto("Clean Code", category.Id));
+
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
     }
 }

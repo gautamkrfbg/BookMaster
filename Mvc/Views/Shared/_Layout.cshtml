@@ -12,7 +12,26 @@
         <a href="/Users">Users</a>
         <a href="/Exchange/Listings">Listings</a>
         <a href="/Exchange/Requests">Requests</a>
+        @if (User.IsInRole("ADMIN"))
+        {
+            <a href="/Admin">Admin</a>
+        }
     </nav>
+    <div class="account">
+        @if (User.Identity!.IsAuthenticated)
+        {
+            <span>Hello, @User.Identity.Name</span>
+            <form method="post" action="/Auth/Logout" style="display:inline">
+                @Html.AntiForgeryToken()
+                <button type="submit">Log out</button>
+            </form>
+        }
+        else
+        {
+            <a href="/Auth/Login">Sign in</a>
+            <a href="/Auth/Register">Register</a>
+        }
+    </div>
     <main>
         @RenderBody()
     </main>

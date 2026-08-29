@@ -8,6 +8,8 @@ public static class BookStatus
     public const string Owned = "OWNED";
     public const string Listed = "LISTED";
     public const string Exchanged = "EXCHANGED";
+
+    public static bool IsValid(string status) => status is Owned or Listed or Exchanged;
 }
 
 public class Book

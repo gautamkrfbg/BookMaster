@@ -1,0 +1,12 @@
+@model AdminStatsVm
+<h1>Admin Dashboard</h1>
+<table>
+    <tr><th>Metric</th><th>Count</th></tr>
+    <tr><td>Users</td><td>@Model.Users</td></tr>
+    <tr><td>Books</td><td>@Model.Books</td></tr>
+    <tr><td>Categories</td><td>@Model.Categories</td></tr>
+    <tr><td>Listings</td><td>@Model.Listings</td></tr>
+    <tr><td>Requests</td><td>@Model.Requests</td></tr>
+    <tr><td>Pending requests</td><td>@Model.PendingRequests</td></tr>
+    <tr><td>Exchanges completed</td><td>@Model.ExchangesCompleted</td></tr>
+</table>

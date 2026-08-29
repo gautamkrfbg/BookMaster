@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using BookMaster.Mvc.Models;
 using BookMaster.Mvc.Services;
@@ -15,13 +16,16 @@ public class ExchangeController : Controller
         return View(listings);
     }
 
+    [Authorize]
     public async Task<IActionResult> CreateListing()
     {
         ViewBag.Books = await _api.GetBooksAsync();
         return View();
     }
 
+    [Authorize]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateListing(CreateExchangeListingVm listing)
     {
         var response = await _api.CreateListingAsync(listing);
@@ -34,21 +38,32 @@ public class ExchangeController : Controller
         return RedirectToAction(nameof(Listings));
     }
 
+    [Authorize(Roles = "ADMIN")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteListing(long id)
+    {
+        await _api.DeleteListingAsync(id);
+        return RedirectToAction(nameof(Listings));
+    }
+
     public async Task<IActionResult> Requests()
     {
         var requests = await _api.GetRequestsAsync();
         return View(requests);
     }
 
+    [Authorize]
     public async Task<IActionResult> CreateRequest()
     {
         ViewBag.Listings = await _api.GetListingsAsync();
-        ViewBag.Users = await _api.GetUsersAsync();
         ViewBag.Books = await _api.GetBooksAsync();
         return View();
     }
 
+    [Authorize]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateRequest(CreateExchangeRequestVm request)
     {
         var response = await _api.CreateRequestAsync(request);
@@ -56,21 +71,24 @@ public class ExchangeController : Controller
         {
             ModelState.AddModelError(string.Empty, "Could not create request.");
             ViewBag.Listings = await _api.GetListingsAsync();
-            ViewBag.Users = await _api.GetUsersAsync();
             ViewBag.Books = await _api.GetBooksAsync();
             return View(request);
         }
         return RedirectToAction(nameof(Requests));
     }
 
+    [Authorize]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Accept(long id)
     {
         await _api.AcceptRequestAsync(id);
         return RedirectToAction(nameof(Requests));
     }
 
+    [Authorize]
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reject(long id)
     {
         await _api.RejectRequestAsync(id);

@@ -1,0 +1,11 @@
+@model LoginVm
+<h1>Sign in</h1>
+<div asp-validation-summary="All" class="error"></div>
+<form method="post" asp-action="Login">
+    <label>Email</label>
+    <input asp-for="Email" /><br />
+    <label>Password</label>
+    <input asp-for="Password" type="password" /><br />
+    <button type="submit">Sign in</button>
+</form>
+<p>No account? <a href="/Auth/Register">Register</a></p>

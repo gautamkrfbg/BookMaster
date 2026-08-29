@@ -2,9 +2,10 @@
 <h1>New Exchange Listing</h1>
 <div asp-validation-summary="All" class="error"></div>
 <form method="post">
+    @Html.AntiForgeryToken()
     <label>Book</label>
     <select asp-for="BookId">
-        @foreach (var b in (List<BookVm>)ViewBag.Books)
+        @foreach (var b in (ViewBag.Books as List<BookVm>) ?? new List<BookVm>())
         {
             <option value="@b.Id">@b.Title</option>
         }

@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookMaster.Api.Data;
+using BookMaster.Api.Extensions;
 using BookMaster.Api.Models;
 using BookMaster.Api.DTOs;
 
@@ -43,18 +45,22 @@ public class BooksController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<BookDto>> Create(CreateBookDto dto)
     {
-        var ownerExists = await _db.Users.AnyAsync(u => u.Id == dto.OwnerId);
-        if (!ownerExists) return BadRequest("Owner does not exist.");
+        if (string.IsNullOrWhiteSpace(dto.Title)) return BadRequest("Title is required.");
+
+        var ownerId = User.GetUserId();
+        if (!await _db.Users.AnyAsync(u => u.Id == ownerId))
+            return Unauthorized("Account no longer exists.");
 
         var categoryExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId);
         if (!categoryExists) return BadRequest("Category does not exist.");
 
         var book = new Book
         {
-            Title = dto.Title,
-            OwnerId = dto.OwnerId,
+            Title = dto.Title.Trim(),
+            OwnerId = ownerId,
             CategoryId = dto.CategoryId,
             Status = BookStatus.Owned
         };
@@ -64,12 +70,21 @@ public class BooksController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> Update(long id, UpdateBookDto dto)
     {
         var book = await _db.Books.FindAsync(id);
         if (book == null) return NotFound();
 
-        book.Title = dto.Title;
+        if (string.IsNullOrWhiteSpace(dto.Title)) return BadRequest("Title is required.");
+
+        if (!BookStatus.IsValid(dto.Status))
+            return BadRequest("Invalid status.");
+
+        if (!await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId))
+            return BadRequest("Category does not exist.");
+
+        book.Title = dto.Title.Trim();
         book.CategoryId = dto.CategoryId;
         book.Status = dto.Status;
         await _db.SaveChangesAsync();
@@ -77,10 +92,14 @@ public class BooksController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> Delete(long id)
     {
         var book = await _db.Books.FindAsync(id);
         if (book == null) return NotFound();
+
+        var referenced = await _db.ExchangeRequests.AnyAsync(r => r.OfferedBookId == id || r.Listing!.BookId == id);
+        if (referenced) return Conflict("Book is referenced by exchange activity and cannot be deleted.");
 
         _db.Books.Remove(book);
         await _db.SaveChangesAsync();

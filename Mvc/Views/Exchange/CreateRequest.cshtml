@@ -2,23 +2,17 @@
 <h1>New Exchange Request</h1>
 <div asp-validation-summary="All" class="error"></div>
 <form method="post">
+    @Html.AntiForgeryToken()
     <label>Listing</label>
     <select asp-for="ListingId">
-        @foreach (var l in (List<ExchangeListingVm>)ViewBag.Listings)
+        @foreach (var l in (ViewBag.Listings as List<ExchangeListingVm>) ?? new List<ExchangeListingVm>())
         {
             <option value="@l.Id">Listing #@l.Id (wants @l.WantedType)</option>
         }
     </select><br />
-    <label>Requester</label>
-    <select asp-for="RequesterId">
-        @foreach (var u in (List<UserVm>)ViewBag.Users)
-        {
-            <option value="@u.Id">@u.Name</option>
-        }
-    </select><br />
     <label>Offered Book</label>
     <select asp-for="OfferedBookId">
-        @foreach (var b in (List<BookVm>)ViewBag.Books)
+        @foreach (var b in (ViewBag.Books as List<BookVm>) ?? new List<BookVm>())
         {
             <option value="@b.Id">@b.Title</option>
         }

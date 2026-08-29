@@ -1,0 +1,36 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+
+# Rider
+.idea/
+
+# .NET
+*.user
+*.nupkg
+*.snupkg
+*.DS_Store
+
+# Secrets / local config
+appsettings.Local.json
+appsettings.*.local.json
+secrets.json
+
+# EF / tools
+*.dbUser
+
+# Logs
+*.log
+logs/

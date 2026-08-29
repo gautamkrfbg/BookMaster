@@ -1,6 +1,9 @@
 @model List<ExchangeRequestVm>
 <h1>Exchange Requests</h1>
-<a href="/Exchange/CreateRequest">New Request</a>
+@if (User.Identity!.IsAuthenticated)
+{
+    <a href="/Exchange/CreateRequest">New Request</a>
+}
 <table>
     <tr><th>Id</th><th>Listing Id</th><th>Requester Id</th><th>Offered Book Id</th><th>Status</th><th></th></tr>
     @foreach (var r in Model)
@@ -15,9 +18,11 @@
                 @if (r.Status == "PENDING")
                 {
                     <form method="post" action="/Exchange/Accept/@r.Id" style="display:inline">
+                        @Html.AntiForgeryToken()
                         <button type="submit">Accept</button>
                     </form>
                     <form method="post" action="/Exchange/Reject/@r.Id" style="display:inline">
+                        @Html.AntiForgeryToken()
                         <button type="submit">Reject</button>
                     </form>
                 }

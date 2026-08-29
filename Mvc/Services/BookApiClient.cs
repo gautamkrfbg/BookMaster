@@ -8,6 +8,13 @@ public class BookApiClient
     private readonly HttpClient _http;
     public BookApiClient(HttpClient http) => _http = http;
 
+    // Auth
+    public async Task<HttpResponseMessage> LoginAsync(LoginVm vm) =>
+        await _http.PostAsJsonAsync("auth/login", new { vm.Email, vm.Password });
+
+    public async Task<HttpResponseMessage> RegisterAsync(RegisterVm vm) =>
+        await _http.PostAsJsonAsync("auth/register", new { vm.Name, vm.Email, vm.Password });
+
     // Users
     public async Task<List<UserVm>> GetUsersAsync() =>
         await _http.GetFromJsonAsync<List<UserVm>>("users") ?? new();
@@ -18,20 +25,22 @@ public class BookApiClient
     public async Task<List<BookVm>> GetUserLibraryAsync(long id) =>
         await _http.GetFromJsonAsync<List<BookVm>>($"users/{id}/library") ?? new();
 
-    public async Task<HttpResponseMessage> CreateUserAsync(UserVm user) =>
-        await _http.PostAsJsonAsync("users", new { user.Name, user.Email });
-
     // Categories
     public async Task<List<CategoryVm>> GetCategoriesAsync() =>
         await _http.GetFromJsonAsync<List<CategoryVm>>("categories") ?? new();
 
-    public async Task<HttpResponseMessage> CreateCategoryAsync(string name) =>
-        await _http.PostAsJsonAsync("categories", new { Name = name });
-
     // Books
-    public async Task<List<BookVm>> GetBooksAsync(string? search = null, long? categoryId = null) =>
-        await _http.GetFromJsonAsync<List<BookVm>>(
-            $"books?search={search}&categoryId={categoryId}") ?? new();
+    public async Task<List<BookVm>> GetBooksAsync(string? search = null, long? categoryId = null)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(search))
+            query.Add($"search={Uri.EscapeDataString(search)}");
+        if (categoryId.HasValue)
+            query.Add($"categoryId={categoryId.Value}");
+
+        var url = query.Count == 0 ? "books" : $"books?{string.Join("&", query)}";
+        return await _http.GetFromJsonAsync<List<BookVm>>(url) ?? new();
+    }
 
     public async Task<BookVm?> GetBookAsync(long id) =>
         await _http.GetFromJsonAsync<BookVm>($"books/{id}");
@@ -68,4 +77,8 @@ public class BookApiClient
     // History
     public async Task<List<HistoryVm>> GetUserExchangeHistoryAsync(long userId) =>
         await _http.GetFromJsonAsync<List<HistoryVm>>($"users/{userId}/exchange-history") ?? new();
+
+    // Admin
+    public async Task<AdminStatsVm?> GetAdminStatsAsync() =>
+        await _http.GetFromJsonAsync<AdminStatsVm>("admin/stats");
 }

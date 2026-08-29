@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookMaster.Api.Data;
+using BookMaster.Api.Extensions;
 using BookMaster.Api.Models;
 using BookMaster.Api.DTOs;
 
@@ -34,15 +36,24 @@ public class ExchangeListingsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<ExchangeListingDto>> Create(CreateExchangeListingDto dto)
     {
+        if (string.IsNullOrWhiteSpace(dto.WantedType)) return BadRequest("Wanted type is required.");
+
         var book = await _db.Books.FindAsync(dto.BookId);
         if (book == null) return BadRequest("Book does not exist.");
+
+        if (book.OwnerId != User.GetUserId())
+            return BadRequest("You can only list books you own.");
+
+        if (book.Status != BookStatus.Owned)
+            return BadRequest("Only books you own and are not already listed/exchanged can be listed.");
 
         var alreadyListed = await _db.ExchangeListings.AnyAsync(l => l.BookId == dto.BookId);
         if (alreadyListed) return Conflict("Book is already listed for exchange.");
 
-        var listing = new ExchangeListing { BookId = dto.BookId, WantedType = dto.WantedType };
+        var listing = new ExchangeListing { BookId = dto.BookId, WantedType = dto.WantedType.Trim() };
         _db.ExchangeListings.Add(listing);
 
         book.Status = BookStatus.Listed;
@@ -52,10 +63,14 @@ public class ExchangeListingsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> Delete(long id)
     {
         var listing = await _db.ExchangeListings.Include(l => l.Book).FirstOrDefaultAsync(l => l.Id == id);
         if (listing == null) return NotFound();
+
+        if (await _db.ExchangeRequests.AnyAsync(r => r.ListingId == id))
+            return Conflict("Listing has exchange requests and cannot be deleted.");
 
         if (listing.Book != null && listing.Book.Status == BookStatus.Listed)
             listing.Book.Status = BookStatus.Owned;
