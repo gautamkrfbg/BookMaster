@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "BookMaster.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Database__AutoApply": "true"
+      },
+      "applicationUrl": "https://localhost:59692;http://localhost:59694"
+    }
+  }
+}
