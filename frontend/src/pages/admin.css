@@ -1,0 +1,224 @@
+/* ---------- Admin dashboard ---------- */
+.adm {
+  flex: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px var(--bm-gutter) 88px;
+}
+
+.adm-role {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid var(--bm-primary);
+  border-radius: 999px;
+  background: var(--bm-surface-container-lowest);
+  color: var(--bm-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adm-grid {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.adm-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px 16px;
+  background: var(--bm-surface-container-lowest);
+  border: 1px solid var(--bm-outline-variant);
+  border-radius: var(--bm-radius-lg);
+}
+
+.adm-card__icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bm-primary);
+  opacity: 0.55;
+}
+
+.adm-card__value {
+  font-family: var(--bm-font-display);
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--bm-primary);
+}
+
+.adm-card__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bm-secondary);
+}
+
+.adm-glance {
+  margin-top: 32px;
+  max-width: 560px;
+  padding: 22px 24px;
+  background: var(--bm-surface-container-lowest);
+  border: 1px solid var(--bm-outline-variant);
+  border-radius: var(--bm-radius-lg);
+}
+
+.adm-glance__title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bm-primary);
+  margin-bottom: 10px;
+}
+
+.adm-glance__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--bm-outline-variant);
+}
+
+.adm-glance__row span {
+  flex: 1;
+  font-size: 14px;
+  color: var(--bm-on-surface);
+}
+
+.adm-glance__row strong {
+  font-size: 16px;
+  color: var(--bm-primary);
+}
+
+.adm-glance__row em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--bm-secondary);
+}
+
+/* Loading */
+.adm-loading {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.adm-loading__cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.adm-loading__card {
+  height: 108px;
+}
+
+.adm-loading__line {
+  height: 120px;
+  max-width: 560px;
+}
+
+/* Unauthorized */
+.adm-denied {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px var(--bm-gutter);
+}
+
+.adm-denied__card {
+  width: 100%;
+  max-width: 460px;
+  padding: 40px;
+  background: var(--bm-surface-container-lowest);
+  border: 1px solid var(--bm-outline-variant);
+  border-radius: var(--bm-radius-lg);
+  box-shadow: 0 20px 60px rgba(23, 49, 36, 0.08);
+}
+
+.adm-denied__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bm-surface-container-low);
+  color: var(--bm-primary);
+  margin-bottom: 16px;
+}
+
+.adm-denied__copy {
+  margin-top: 8px;
+  color: var(--bm-secondary);
+}
+
+.adm-denied__card .dash-cta {
+  margin-top: 24px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .adm-grid,
+  .adm-loading__cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .adm-grid,
+  .adm-loading__cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .adm {
+    padding: 28px var(--bm-space-mobile) 64px;
+  }
+
+  .adm-grid,
+  .adm-loading__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .adm-card {
+    padding: 16px 18px 14px;
+  }
+
+  .adm-card__icon {
+    top: 14px;
+    right: 14px;
+  }
+
+  .adm-card__value {
+    font-size: 28px;
+  }
+
+  .adm-glance {
+    padding: 18px 20px;
+  }
+
+  .adm-denied {
+    padding: 40px var(--bm-space-mobile);
+  }
+
+  .adm-denied__card {
+    padding: 28px 24px;
+  }
+}

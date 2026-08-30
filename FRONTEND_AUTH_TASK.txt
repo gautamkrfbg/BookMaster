@@ -1,0 +1,372 @@
+# BookMaster — Admin Dashboard UI Design
+
+Design the authenticated ADMIN Dashboard for BookMaster, a peer-to-peer book exchange platform.
+
+The existing BookMaster Sign In, Sign Up, Dashboard, Marketplace, Book Details, My Library, My Listings, Requests, Exchange History, Notifications, and Profile designs are the visual source of truth.
+
+The Admin Dashboard should feel like the same BookMaster product while being clearly distinct from the normal user Dashboard.
+
+==================================================
+IMPORTANT — FUNCTIONAL SOURCE OF TRUTH
+==================================================
+
+The existing ASP.NET Core backend is the functional source of truth.
+
+Before finalizing the design, inspect the actual admin endpoints, especially:
+
+- /api/admin/stats
+- AdminController
+- AdminStats response/model
+- Authentication and ADMIN role authorization
+- Any other admin endpoints actually present
+
+Only display information returned by or safely derived from the backend.
+
+Do NOT invent statistics, charts, users, books, exchanges, revenue, activity, or moderation functionality.
+
+If the backend only provides summary statistics, design a statistics-focused dashboard rather than inventing management screens.
+
+==================================================
+ADMIN ACCESS
+==================================================
+
+This page is ONLY for authenticated users with the ADMIN role.
+
+Normal USER accounts must not have access to the Admin Dashboard.
+
+Do not create frontend-only authorization as the security mechanism. The backend remains authoritative.
+
+==================================================
+OVERALL DESIGN
+==================================================
+
+The Admin Dashboard should feel:
+
+- Professional
+- Clean
+- Editorial
+- Structured
+- Trustworthy
+- Consistent with BookMaster
+
+It should NOT look like a generic corporate SaaS dashboard.
+
+Continue the BookMaster visual language:
+
+- Warm off-white/paper background
+- Deep forest green primary
+- Charcoal text
+- Muted warm neutrals
+- Playfair Display for major headings
+- Inter for body/UI
+- Generous whitespace
+
+The admin page can be more structured and information-dense than the normal user Dashboard, but should remain visually calm.
+
+==================================================
+ADMIN NAVIGATION
+==================================================
+
+Use an admin-appropriate authenticated navigation.
+
+BookMaster
+
+Dashboard
+Users / other admin sections ONLY if actually supported
+Marketplace
+My Library / normal user navigation where appropriate
+
+Profile
+Logout
+
+Clearly indicate:
+
+ADMIN
+
+Do not add admin navigation items for endpoints/features that do not exist.
+
+==================================================
+PAGE HEADER
+==================================================
+
+Heading:
+
+## Admin Dashboard
+
+Supporting text:
+
+Overview of activity across BookMaster.
+
+Keep the header concise.
+
+==================================================
+OVERVIEW STATISTICS
+==================================================
+
+Use the actual response from:
+
+GET /api/admin/stats
+
+Create clean statistic cards only for values actually returned.
+
+Examples may include:
+
+- Total Users
+- Total Books
+- Active Listings
+- Exchange Requests
+- Completed Exchanges
+
+ONLY use the actual fields from the backend response.
+
+Do not assume these exact fields exist.
+
+Do not fabricate values.
+
+==================================================
+STATISTIC CARD DESIGN
+==================================================
+
+Cards should be compact and elegant.
+
+Each should contain:
+
+- Label
+- Actual value
+- Subtle supporting icon if appropriate
+
+Avoid unnecessary:
+
+- Percentages
+- Growth arrows
+- "Compared to last month"
+- Fake trends
+- Fake analytics
+
+unless the backend actually provides that data.
+
+==================================================
+CHARTS
+==================================================
+
+Do NOT create charts merely to make the dashboard look sophisticated.
+
+Only include charts if the backend actually provides time-series or categorical data needed to populate them.
+
+If /api/admin/stats returns only aggregate values:
+
+Use statistic cards and concise summary sections.
+
+Do NOT create fake charts from aggregate values.
+
+==================================================
+USER OVERVIEW
+==================================================
+
+If the admin stats API provides user counts or user-related information, display it appropriately.
+
+Do not create a full user-management table unless the backend actually provides the necessary admin user-management endpoints.
+
+Do not invent:
+
+- User activity
+- User growth
+- User locations
+- User engagement
+- User rankings
+
+==================================================
+BOOK / LISTING OVERVIEW
+==================================================
+
+If actual admin statistics include book/listing information, display it.
+
+Otherwise, do not create fake book-management sections.
+
+Do not create Edit/Delete/Moderation controls unless the backend supports them.
+
+==================================================
+EXCHANGE OVERVIEW
+==================================================
+
+If actual admin statistics include exchange/request information, display it.
+
+Use meaningful labels based on actual backend terminology.
+
+Do not fabricate:
+
+- Exchange value
+- Revenue
+- Delivery status
+- Shipping data
+- Completion percentages
+
+==================================================
+ADMIN ACTIONS
+==================================================
+
+Inspect the backend before showing any administrative action.
+
+Only provide controls for actual admin endpoints.
+
+If the current backend supports an operation such as changing book status, it may be represented appropriately.
+
+Do NOT create:
+
+- User banning
+- User deletion
+- Book deletion
+- Listing deletion
+- Request moderation
+- Content moderation
+
+unless corresponding backend functionality actually exists.
+
+==================================================
+LOADING STATE
+==================================================
+
+Create skeleton statistic cards and appropriate loading placeholders.
+
+Do not use a distracting full-page spinner.
+
+==================================================
+ERROR STATE
+==================================================
+
+Create:
+
+## Unable to load admin dashboard
+
+Something went wrong while loading the dashboard.
+
+[ Try again ]
+
+Do not expose:
+
+- SQL errors
+- Stack traces
+- Internal exceptions
+- API URLs
+
+==================================================
+UNAUTHORIZED STATE
+==================================================
+
+Design an appropriate state for a non-admin user attempting to access the page.
+
+Example:
+
+## Access restricted
+
+You don't have permission to view this page.
+
+[ Return to Dashboard ]
+
+Do not expose admin information before authorization is established.
+
+==================================================
+EMPTY / NO DATA STATE
+==================================================
+
+If the admin statistics response contains no usable data:
+
+Use a clean empty state rather than fake values.
+
+==================================================
+RESPONSIVE DESIGN
+==================================================
+
+DESKTOP:
+
+Use a structured dashboard grid with:
+
+Header
+↓
+Summary statistics
+↓
+Additional backend-supported sections
+
+MOBILE:
+
+Use:
+
+- Compact header
+- Stacked statistics
+- Single-column content
+- Touch-friendly controls
+
+Do not simply shrink the desktop layout.
+
+==================================================
+ACCESSIBILITY
+==================================================
+
+Ensure:
+
+- Proper heading hierarchy
+- Accessible statistic labels
+- Keyboard navigation
+- Visible focus states
+- Sufficient contrast
+- Accessible navigation
+- Clear authorization messaging
+
+Do not rely only on color.
+
+==================================================
+BACKEND CHECK — MANDATORY
+==================================================
+
+Before finalizing the design, inspect:
+
+- AdminController
+- /api/admin/stats
+- AdminStats model/DTO
+- Authentication middleware
+- ADMIN role authorization
+- Any additional admin endpoints
+
+Determine exactly:
+
+1. What statistics exist
+2. What admin actions exist
+3. What information an admin can access
+4. What normal users cannot access
+
+The design must reflect the actual backend.
+
+==================================================
+DO NOT DESIGN FUTURE FEATURES
+==================================================
+
+Do not add:
+
+- Analytics that don't exist
+- Charts without backend data
+- User management without endpoints
+- Moderation tools without endpoints
+- Revenue
+- Payments
+- Delivery
+- Reports
+- Audit logs
+- Advanced analytics
+
+unless those features already exist.
+
+==================================================
+OUTPUT
+==================================================
+
+Generate:
+
+1. Desktop Admin Dashboard
+2. Mobile Admin Dashboard
+3. Populated state
+4. Loading state
+5. API error state
+6. Unauthorized/non-admin state
+7. Empty/no-data state
+
+The final design should feel like the administrative counterpart to the existing BookMaster Dashboard while remaining visually consistent with the entire application.
