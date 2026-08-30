@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { ApiError, apiGet, apiPost } from '../api/client';
+import { ApiError, acquireCopy, apiGet, apiPost } from '../api/client';
 import type {
   BookListItem,
   CategoryItem,
@@ -11,9 +11,13 @@ import type {
 } from '../api/types';
 import { useAuth } from '../auth/useAuth';
 import { AppNav } from '../components/AppNav';
-import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from '../components/icons';
+import { ArrowLeftIcon, ArrowRightIcon, BookIcon, CheckIcon, CloseIcon } from '../components/icons';
+import { hasPurchased, recordPurchase } from '../lib/purchases';
+import { formatINR } from '../lib/price';
+import { toast } from '../toast/toastBus';
 import './dashboard.css';
 import './book-details.css';
+import './library.css';
 
 interface BookDetailsPayload {
   book: BookListItem;
@@ -63,19 +67,22 @@ export function BookDetailsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [buyOpen, setBuyOpen] = useState(false);
+  const [purchased, setPurchased] = useState(false);
+  const [buying, setBuying] = useState(false);
 
   const runFetch = useCallback(async (): Promise<BookDetailsPayload> => {
     const book = await apiGet<BookListItem>(`/books/${id}`);
     const [categories, listings, requests, owner] = await Promise.all([
       apiGet<CategoryItem[]>('/categories'),
       apiGet<ExchangeListingItem[]>('/exchangelistings?pageSize=200'),
-      apiGet<ExchangeRequestItem[]>('/exchangerequests'),
+      apiGet<ExchangeRequestItem[]>('/exchangerequests', token),
       apiGet<UserListItem>(`/users/${book.ownerId}`),
     ]);
     const categoryName = categories.find((c) => c.id === book.categoryId)?.name ?? 'Book';
     const listing = listings.find((l) => l.bookId === book.id) ?? null;
     return { book, categoryName, listing, ownerName: owner.name, requests };
-  }, [id]);
+  }, [id, token]);
 
   useEffect(() => {
     let active = true;
@@ -89,6 +96,7 @@ export function BookDetailsPage() {
         setMyBooks(null);
         setLibraryFailed(false);
         setPayload(result);
+        setPurchased(hasPurchased(myId, result.book.id));
         setLoadedId(activeId);
       },
       (error: unknown) => {
@@ -110,12 +118,24 @@ export function BookDetailsPage() {
     return () => {
       active = false;
     };
-  }, [runFetch, activeId]);
+  }, [runFetch, activeId, myId]);
+
+  useEffect(() => {
+    if (!buyOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setBuyOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [buyOpen]);
 
   function retry() {
     runFetch().then(
       (result) => {
         setPayload(result);
+        setPurchased(hasPurchased(myId, result.book.id));
         setLoadedId(activeId);
       },
       () => setFailed(true),
@@ -128,7 +148,7 @@ export function BookDetailsPage() {
     setLibraryFailed(false);
     setSelectedBookId(null);
     setSubmitError(null);
-    apiGet<BookListItem[]>(`/users/${myId}/library`).then(
+    apiGet<BookListItem[]>(`/users/${myId}/library`, token).then(
       (books) => setMyBooks(books),
       () => {
         setLibraryFailed(true);
@@ -158,6 +178,32 @@ export function BookDetailsPage() {
       setSubmitError(`Unable to send exchange request. ${friendlyError(error)}`);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function openBuy() {
+    setBuyOpen(true);
+  }
+
+  function closeBuy() {
+    setBuyOpen(false);
+  }
+
+  async function confirmBuy() {
+    const currentBook = payload?.book;
+    if (!currentBook || !token || buying) return;
+    setBuying(true);
+    try {
+      const copy = await acquireCopy(currentBook.id, token);
+      recordPurchase(myId, currentBook.id, copy.id);
+      setPurchased(true);
+      setBuyOpen(false);
+      toast.success(`Mock purchase complete. You can now read “${currentBook.title}”.`);
+    } catch {
+      setBuyOpen(false);
+      toast.error('Unable to complete the mock purchase. Please try again.');
+    } finally {
+      setBuying(false);
     }
   }
 
@@ -260,12 +306,22 @@ export function BookDetailsPage() {
     !!listing && !isMine && book.status === 'LISTED' && !myRequestPending;
 
   const eligible = (myBooks ?? []).filter(
-    (b) => b.status === 'OWNED' && b.id !== book.id,
+    (b) =>
+      b.ownerId === myId &&
+      !b.isCatalogue &&
+      (b.status === 'OWNED' || b.status === 'LISTED') &&
+      b.id !== book.id,
   );
+
+  const buyable = book.isCatalogue && !isMine && !purchased && book.status !== 'EXCHANGED';
+  const authorLabel = book.author.trim().length > 0 ? book.author : 'Unknown author';
 
   let badgeLabel = 'Not listed';
   let badgeTone = 'owned';
-  if (book.status === 'EXCHANGED') {
+  if (purchased && !isMine) {
+    badgeLabel = 'Purchased (demo)';
+    badgeTone = 'purchased';
+  } else if (book.status === 'EXCHANGED') {
     badgeLabel = 'Exchanged';
     badgeTone = 'exchanged';
   } else if (canRequest) {
@@ -274,6 +330,9 @@ export function BookDetailsPage() {
   } else if (myRequestPending) {
     badgeLabel = 'Request pending';
     badgeTone = 'pending';
+  } else if (buyable) {
+    badgeLabel = 'Available';
+    badgeTone = 'listed';
   } else if (isMine) {
     badgeLabel = 'Your book';
     badgeTone = 'owned';
@@ -288,10 +347,18 @@ export function BookDetailsPage() {
     sub = `You listed this book. Looking for ${listing?.wantedType ?? 'a trade'}.`;
   } else if (isMine && book.status === 'EXCHANGED') {
     sub = 'This book has already been exchanged.';
+  } else if (isMine && book.isCatalogue) {
+    sub = 'This catalogue book is listed in the Marketplace. It doesn’t appear in your library.';
   } else if (isMine) {
     sub = 'This is your book. It isn’t listed for exchange yet.';
+  } else if (purchased) {
+    sub = 'You mock-purchased this book. Open the demo reading preview whenever you like.';
+  } else if (buyable) {
+    sub = `Available to buy for ${formatINR(book.price)}. A mock purchase unlocks the demo reading preview.`;
   } else if (book.status === 'EXCHANGED') {
     sub = 'This book has already been exchanged and is no longer available.';
+  } else if (!isMine && !purchased) {
+    sub = 'This book isn’t listed for exchange right now. You can still mock-purchase it to try the demo reading preview.';
   }
 
   return (
@@ -325,9 +392,13 @@ export function BookDetailsPage() {
             <h1 id="bd-title" className="bd-title">
               {book.title}
             </h1>
+            <p className="bd-author">by {authorLabel}</p>
 
             <div className="bd-meta" role="status">
               <span className={`pill pill--${badgeTone}`}>{badgeLabel}</span>
+              {book.isCatalogue && book.price > 0 ? (
+                <span className="bd-price">{formatINR(book.price)}</span>
+              ) : null}
             </div>
 
             <p className="bd-sub">{sub}</p>
@@ -388,8 +459,8 @@ export function BookDetailsPage() {
                       </div>
                     ) : eligible.length === 0 ? (
                       <p className="bd-offer__empty">
-                        You don’t have any books available to offer. Add books to your library
-                        first.
+                        You don’t have any books available to offer. Pick up or list a book in
+                        the Marketplace, then offer it here.
                       </p>
                     ) : (
                       <div className="bd-offer__list" role="radiogroup" aria-label="Books you can offer">
@@ -481,6 +552,10 @@ export function BookDetailsPage() {
                     ? 'Incoming requests for this book appear on your Requests page.'
                     : 'Books can only be requested once they’re listed for exchange.'}
                 </p>
+                <Link className="dash-cta dash-cta--primary bd-request" to={`/books/read/${book.id}`}>
+                  <BookIcon size={15} />
+                  Read book
+                </Link>
               </div>
             ) : (
               <div className="bd-actions bd-actions--status">
@@ -492,8 +567,103 @@ export function BookDetailsPage() {
               </div>
             )}
           </div>
+
+          {buyable ? (
+            <section className="bd-shop" aria-labelledby="bd-shop-title">
+              <div className="bd-shop__main">
+                <div>
+                  <h2 id="bd-shop-title" className="bd-shop__title">
+                    {formatINR(book.price)} — buy this book
+                  </h2>
+                  <p className="bd-shop__copy">
+                    Mock-purchase &ldquo;{book.title}&rdquo; by {authorLabel} for{' '}
+                    {formatINR(book.price)} to unlock the demo reading preview. No payment is
+                    made and no real book is delivered.
+                  </p>
+                </div>
+                <button type="button" className="dash-cta dash-cta--primary bd-request" onClick={openBuy}>
+                  Buy for {formatINR(book.price)}
+                </button>
+              </div>
+            </section>
+          ) : purchased ? (
+            <section className="bd-shop bd-shop--owned" aria-labelledby="bd-shop-owned-title">
+              <div className="bd-shop__main">
+                <div>
+                  <h2 id="bd-shop-owned-title" className="bd-shop__title">
+                    Purchased (demo)
+                  </h2>
+                  <p className="bd-shop__copy">
+                    You mock-purchased &ldquo;{book.title}&rdquo;. Your demo reading access is
+                    stored locally in this browser.
+                  </p>
+                </div>
+                <Link className="dash-cta dash-cta--primary bd-request" to={`/books/read/${book.id}`}>
+                  <BookIcon size={15} />
+                  Read book
+                </Link>
+              </div>
+            </section>
+          ) : null}
         </section>
       </main>
+
+      {buyOpen ? (
+        <div
+          className="bm-modal"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeBuy();
+          }}
+        >
+          <section
+            className="bm-modal__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bd-buy-title"
+          >
+            <header className="bm-modal__head">
+              <h2 id="bd-buy-title" className="bm-headline-sm bm-modal__title">
+                Mock purchase
+              </h2>
+              <button
+                type="button"
+                className="bm-modal__close"
+                aria-label="Close mock purchase"
+                onClick={closeBuy}
+              >
+                <CloseIcon size={16} />
+              </button>
+            </header>
+            <p className="bm-modal__copy">
+              You are about to mock-purchase &ldquo;{book.title}&rdquo; by {authorLabel} for{' '}
+              {formatINR(book.price)}. This is not a real sale: no payment is made and no
+              physical book will be shipped.
+            </p>
+            <p className="bd-buy__note" role="note">
+              After confirming, you&apos;ll be able to open the demo reading preview for this
+              book from its details page or your library.
+            </p>
+            <div className="bm-modal__actions">
+              <button
+                type="button"
+                className="dash-cta dash-cta--primary"
+                onClick={confirmBuy}
+                disabled={buying}
+              >
+                {buying ? 'Purchasing…' : 'Confirm mock purchase'}
+              </button>
+              <button
+                type="button"
+                className="dash-cta dash-cta--ghost"
+                onClick={closeBuy}
+                disabled={buying}
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

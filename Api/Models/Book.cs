@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace BookMaster.Api.Models;
 
@@ -19,6 +20,10 @@ public class Book
     [Required, MaxLength(255)]
     public string Title { get; set; } = string.Empty;
 
+    [Column("author")]
+    [MaxLength(255)]
+    public string Author { get; set; } = string.Empty;
+
     [Column("owner_id")]
     public long OwnerId { get; set; }
     public User? Owner { get; set; }
@@ -26,6 +31,13 @@ public class Book
     [Column("category_id")]
     public long CategoryId { get; set; }
     public Category? Category { get; set; }
+
+    [Column("price")]
+    [Precision(18, 2)]
+    public decimal Price { get; set; }
+
+    [Column("is_catalogue")]
+    public bool IsCatalogue { get; set; }
 
     [Required, MaxLength(50)]
     public string Status { get; set; } = BookStatus.Owned;

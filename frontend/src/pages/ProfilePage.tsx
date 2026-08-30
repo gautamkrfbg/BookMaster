@@ -332,7 +332,13 @@ export function ProfilePage() {
             </div>
           </div>
           <ul className="prf-links">
-            {ACCOUNT_LINKS.map((link) => (
+            {ACCOUNT_LINKS.filter(
+              (link) =>
+                user?.role !== 'ADMIN' ||
+                (link.to !== '/library' &&
+                  link.to !== '/listings' &&
+                  link.to !== '/requests'),
+            ).map((link) => (
               <li key={link.to} className="prf-link-row">
                 <Link className="prf-link" to={link.to}>
                   <span className="prf-link__text">

@@ -1,372 +1,784 @@
-# BookMaster — Admin Dashboard UI Design
+BOOKMASTER — FINAL FUNCTIONALITY CORRECTIONS
+AUTHORITATIVE IMPLEMENTATION SPECIFICATION
+
+IMPORTANT:
+This is an EXISTING BookMaster application.
+
+The current frontend and backend already contain substantial implemented functionality.
+
+DO NOT rebuild the application.
+
+DO NOT redesign the architecture.
+
+DO NOT replace existing implementations with new ones.
+
+DO NOT undo functionality that is already working.
+
+This document defines ONLY the remaining corrections required.
+
+Treat the CURRENT CODE ON DISK as the source of truth for implementation details.
+
+Before making changes, inspect the relevant current files and understand the existing implementation.
+
+============================================================
+1. CURRENT BOOKMASTER BUSINESS MODEL
+============================================================
+
+The intended final book lifecycle is:
+
+ADMIN ADDS CATALOGUE BOOK
+        ↓
+BOOK APPEARS IN MARKETPLACE
+        ↓
+USER PURCHASES BOOK
+        ↓
+MOCK PURCHASE + BACKEND ACQUIRED COPY
+        ↓
+BOOK APPEARS IN USER'S LIBRARY
+        ↓
+USER CAN READ BOOK
+        ↓
+USER CAN LIST BOOK FOR EXCHANGE
+        ↓
+ANOTHER USER CAN REQUEST IT
+        ↓
+EXCHANGE COMPLETES
+        ↓
+RECIPIENT OWNS BOOK
+        ↓
+BOOK APPEARS IN RECIPIENT'S LIBRARY
+        ↓
+RECIPIENT CAN READ IT
+        ↓
+RECIPIENT CAN LIST IT FOR EXCHANGE AGAIN
+   IF EXISTING EXCHANGE RULES ALLOW
 
-Design the authenticated ADMIN Dashboard for BookMaster, a peer-to-peer book exchange platform.
+There is NO separate concept of "purchased but not owned".
 
-The existing BookMaster Sign In, Sign Up, Dashboard, Marketplace, Book Details, My Library, My Listings, Requests, Exchange History, Notifications, and Profile designs are the visual source of truth.
+A purchased/acquired book is a legitimate user-owned book for exchange purposes.
 
-The Admin Dashboard should feel like the same BookMaster product while being clearly distinct from the normal user Dashboard.
+The existing acquire implementation already creates a backend Book copy with:
 
-==================================================
-IMPORTANT — FUNCTIONAL SOURCE OF TRUTH
-==================================================
+- OwnerId = current user
+- Status = OWNED
+- IsCatalogue = false
 
-The existing ASP.NET Core backend is the functional source of truth.
+Use this existing mechanism.
 
-Before finalizing the design, inspect the actual admin endpoints, especially:
+============================================================
+2. FUNCTIONALITY THAT IS ALREADY WORKING
+============================================================
 
-- /api/admin/stats
-- AdminController
-- AdminStats response/model
-- Authentication and ADMIN role authorization
-- Any other admin endpoints actually present
+DO NOT BREAK THESE FEATURES:
 
-Only display information returned by or safely derived from the backend.
+ADMIN:
 
-Do NOT invent statistics, charts, users, books, exchanges, revenue, activity, or moderation functionality.
+- Admin login
+- Admin dashboard
+- Admin statistics
+- Admin adds catalogue books
+- Admin provides:
+  - Title
+  - Author
+  - Category
+  - INR price
+- Admin-created books appear in Marketplace
+- Admin-created books are catalogue books
+- Catalogue books do not appear in admin's personal Library
+- Admin can remove books
+- Admin can add categories
+- Admin can manage existing admin functionality
 
-If the backend only provides summary statistics, design a statistics-focused dashboard rather than inventing management screens.
+USER:
 
-==================================================
-ADMIN ACCESS
-==================================================
+- Registration/login
+- Marketplace
+- Catalogue books show INR prices
+- Mock purchase confirmation
+- Mock purchase calls the existing acquire endpoint
+- Acquired book appears in user's Library
+- Acquired book can be read
+- Acquired book can be listed for exchange
+- Exchanged books appear in recipient Library
+- Existing reading functionality
+- Existing exchange functionality
 
-This page is ONLY for authenticated users with the ADMIN role.
+EXCHANGE BACKEND:
 
-Normal USER accounts must not have access to the Admin Dashboard.
+- Listing creation
+- Request creation
+- Accept
+- Reject
+- Ownership transfer
+- Exchange history
+- Notifications
+- Existing backend authorization
+- Existing state machine
 
-Do not create frontend-only authorization as the security mechanism. The backend remains authoritative.
+DO NOT redesign or replace any of these.
 
-==================================================
-OVERALL DESIGN
-==================================================
+============================================================
+3. OBSERVED ISSUE #1 — LIST FOR EXCHANGE UI HANGS
+============================================================
 
-The Admin Dashboard should feel:
+CURRENT OBSERVED BEHAVIOR:
 
-- Professional
-- Clean
-- Editorial
-- Structured
-- Trustworthy
-- Consistent with BookMaster
+A user has a legitimate acquired book.
 
-It should NOT look like a generic corporate SaaS dashboard.
+The user opens:
 
-Continue the BookMaster visual language:
+My Library
+→ List for Exchange
 
-- Warm off-white/paper background
-- Deep forest green primary
-- Charcoal text
-- Muted warm neutrals
-- Playfair Display for major headings
-- Inter for body/UI
-- Generous whitespace
+The List for Exchange dialog opens.
 
-The admin page can be more structured and information-dense than the normal user Dashboard, but should remain visually calm.
+The user submits the listing.
 
-==================================================
-ADMIN NAVIGATION
-==================================================
+The button changes to:
 
-Use an admin-appropriate authenticated navigation.
+"LISTING..."
 
-BookMaster
+The UI appears to remain stuck.
 
-Dashboard
-Users / other admin sections ONLY if actually supported
-Marketplace
-My Library / normal user navigation where appropriate
+HOWEVER:
 
-Profile
-Logout
+The listing is actually created successfully on the backend.
 
-Clearly indicate:
+The book subsequently appears in:
 
-ADMIN
+My Listings
 
-Do not add admin navigation items for endpoints/features that do not exist.
+Therefore the problem appears to be in the FRONTEND submission/state-handling flow, not necessarily listing creation.
 
-==================================================
-PAGE HEADER
-==================================================
+DO NOT ASSUME THE API IS FAILING.
 
-Heading:
+TRACE THE CURRENT IMPLEMENTATION FIRST.
 
-## Admin Dashboard
+Trace the complete flow:
 
-Supporting text:
+LibraryPage / ListingsPage
+        ↓
+ListBookDialog
+        ↓
+submit handler
+        ↓
+POST /api/exchangelistings
+        ↓
+actual backend response
+        ↓
+frontend response handling
+        ↓
+loading state
+        ↓
+dialog close
+        ↓
+success/error handling
+        ↓
+refresh/update
 
-Overview of activity across BookMaster.
+Determine the exact cause.
 
-Keep the header concise.
+Specifically inspect:
 
-==================================================
-OVERVIEW STATISTICS
-==================================================
+1. What HTTP method is used?
+2. What request payload is sent?
+3. What status code does the backend actually return?
+4. Does the frontend expect a response body when the endpoint does not return one?
+5. Is the frontend awaiting an unnecessary response?
+6. Is an exception thrown after the backend has already created the listing?
+7. Is the loading state reset?
+8. Does the dialog close after success?
+9. Is a refresh request failing and preventing the UI from completing?
+10. Is stale book data causing an exception after successful listing creation?
 
-Use the actual response from:
+DO NOT GUESS.
 
-GET /api/admin/stats
+Use the current backend controller contract to determine the expected response.
 
-Create clean statistic cards only for values actually returned.
+REQUIRED FINAL BEHAVIOR:
 
-Examples may include:
+User clicks List for Exchange
+        ↓
+POST succeeds
+        ↓
+Listing is created
+        ↓
+Loading state ends
+        ↓
+Dialog closes
+        ↓
+Success feedback appears
+        ↓
+Library/My Listings reflects LISTED state
 
-- Total Users
-- Total Books
-- Active Listings
-- Exchange Requests
-- Completed Exchanges
+A successful listing must NEVER leave the UI stuck on:
 
-ONLY use the actual fields from the backend response.
+"LISTING..."
 
-Do not assume these exact fields exist.
+Make the smallest frontend change necessary.
 
-Do not fabricate values.
+Do NOT change the listing backend unless the current backend contract itself is demonstrably broken.
 
-==================================================
-STATISTIC CARD DESIGN
-==================================================
+============================================================
+4. OBSERVED ISSUE #2 — REQUEST EXCHANGE SHOWS NO OFFER BOOKS
+============================================================
 
-Cards should be compact and elegant.
+CURRENT OBSERVED BEHAVIOR:
 
-Each should contain:
-
-- Label
-- Actual value
-- Subtle supporting icon if appropriate
-
-Avoid unnecessary:
-
-- Percentages
-- Growth arrows
-- "Compared to last month"
-- Fake trends
-- Fake analytics
-
-unless the backend actually provides that data.
-
-==================================================
-CHARTS
-==================================================
-
-Do NOT create charts merely to make the dashboard look sophisticated.
-
-Only include charts if the backend actually provides time-series or categorical data needed to populate them.
-
-If /api/admin/stats returns only aggregate values:
-
-Use statistic cards and concise summary sections.
-
-Do NOT create fake charts from aggregate values.
-
-==================================================
-USER OVERVIEW
-==================================================
-
-If the admin stats API provides user counts or user-related information, display it appropriately.
-
-Do not create a full user-management table unless the backend actually provides the necessary admin user-management endpoints.
-
-Do not invent:
-
-- User activity
-- User growth
-- User locations
-- User engagement
-- User rankings
-
-==================================================
-BOOK / LISTING OVERVIEW
-==================================================
-
-If actual admin statistics include book/listing information, display it.
-
-Otherwise, do not create fake book-management sections.
-
-Do not create Edit/Delete/Moderation controls unless the backend supports them.
-
-==================================================
-EXCHANGE OVERVIEW
-==================================================
-
-If actual admin statistics include exchange/request information, display it.
-
-Use meaningful labels based on actual backend terminology.
-
-Do not fabricate:
-
-- Exchange value
-- Revenue
-- Delivery status
-- Shipping data
-- Completion percentages
-
-==================================================
-ADMIN ACTIONS
-==================================================
-
-Inspect the backend before showing any administrative action.
-
-Only provide controls for actual admin endpoints.
-
-If the current backend supports an operation such as changing book status, it may be represented appropriately.
-
-Do NOT create:
-
-- User banning
-- User deletion
-- Book deletion
-- Listing deletion
-- Request moderation
-- Content moderation
-
-unless corresponding backend functionality actually exists.
-
-==================================================
-LOADING STATE
-==================================================
-
-Create skeleton statistic cards and appropriate loading placeholders.
-
-Do not use a distracting full-page spinner.
-
-==================================================
-ERROR STATE
-==================================================
-
-Create:
-
-## Unable to load admin dashboard
-
-Something went wrong while loading the dashboard.
-
-[ Try again ]
-
-Do not expose:
-
-- SQL errors
-- Stack traces
-- Internal exceptions
-- API URLs
-
-==================================================
-UNAUTHORIZED STATE
-==================================================
-
-Design an appropriate state for a non-admin user attempting to access the page.
+The user has legitimate books in My Library.
 
 Example:
 
-## Access restricted
+FACE IN THE DARK
+Purchased
+        ↓
+Acquired into user's backend library
+        ↓
+User owns the book
 
-You don't have permission to view this page.
+The user then opens another user's listed book and selects:
 
-[ Return to Dashboard ]
+Request Exchange
 
-Do not expose admin information before authorization is established.
+The UI displays:
 
-==================================================
-EMPTY / NO DATA STATE
-==================================================
+"Choose a book to offer"
 
-If the admin statistics response contains no usable data:
+but then says:
 
-Use a clean empty state rather than fake values.
+"You don't have any books available to offer."
 
-==================================================
-RESPONSIVE DESIGN
-==================================================
+This happens with multiple listed books.
 
-DESKTOP:
+Therefore this is NOT a single-book problem.
 
-Use a structured dashboard grid with:
+Investigate the general Request Exchange eligibility/data flow.
 
-Header
-↓
-Summary statistics
-↓
-Additional backend-supported sections
+============================================================
+5. IMPORTANT EXCHANGE DISTINCTION
+============================================================
 
-MOBILE:
+An exchange request involves TWO DIFFERENT BOOKS.
 
-Use:
+BOOK A:
 
-- Compact header
-- Stacked statistics
-- Single-column content
-- Touch-friendly controls
+The book the current user WANTS.
 
-Do not simply shrink the desktop layout.
+Example:
 
-==================================================
-ACCESSIBILITY
-==================================================
+Moorland Whispers
+        ↓
+Listed by another user
+        ↓
+Current user wants this book
 
-Ensure:
+BOOK B:
 
-- Proper heading hierarchy
-- Accessible statistic labels
-- Keyboard navigation
-- Visible focus states
-- Sufficient contrast
-- Accessible navigation
-- Clear authorization messaging
+The book the current user OFFERS in return.
 
-Do not rely only on color.
+Example:
 
-==================================================
-BACKEND CHECK — MANDATORY
-==================================================
+FACE IN THE DARK
+        ↓
+Owned by current user
+        ↓
+Current user offers it
 
-Before finalizing the design, inspect:
+The requested book and offered book must not be confused.
 
-- AdminController
-- /api/admin/stats
-- AdminStats model/DTO
-- Authentication middleware
-- ADMIN role authorization
-- Any additional admin endpoints
+Conceptually:
 
-Determine exactly:
+USER B WANTS:
+    Book A
 
-1. What statistics exist
-2. What admin actions exist
-3. What information an admin can access
-4. What normal users cannot access
+USER B OFFERS:
+    Book B
 
-The design must reflect the actual backend.
+Book B must be a legitimate currently-owned/available book belonging to User B.
 
-==================================================
-DO NOT DESIGN FUTURE FEATURES
-==================================================
+============================================================
+6. ELIGIBLE OFFER BOOK RULE
+============================================================
 
-Do not add:
+A book should be available for selection as an exchange offer if:
 
-- Analytics that don't exist
-- Charts without backend data
-- User management without endpoints
-- Moderation tools without endpoints
-- Revenue
-- Payments
-- Delivery
-- Reports
-- Audit logs
-- Advanced analytics
+- it belongs to the current user
+- it is actually acquired/owned by the current user
+- its backend status is OWNED
+- it is not already LISTED
+- it is not EXCHANGED/unavailable
+- it is not the book being requested
+- it is not another user's book
 
-unless those features already exist.
+Books that MUST be eligible:
 
-==================================================
-OUTPUT
-==================================================
+- books acquired through mock purchase
+- books received through completed exchange
 
-Generate:
+Books that MUST NOT be eligible:
 
-1. Desktop Admin Dashboard
-2. Mobile Admin Dashboard
-3. Populated state
-4. Loading state
-5. API error state
-6. Unauthorized/non-admin state
-7. Empty/no-data state
+- catalogue books not purchased
+- books merely visible in Marketplace
+- another user's books
+- LISTED books
+- EXCHANGED books
+- the book currently being requested
+- stale/nonexistent book IDs
 
-The final design should feel like the administrative counterpart to the existing BookMaster Dashboard while remaining visually consistent with the entire application.
+IMPORTANT:
+
+Do NOT determine eligibility solely from the visual badge:
+
+"Purchased"
+
+The Purchased badge is UI state.
+
+The authoritative ownership information is the backend Book object.
+
+The existing acquire endpoint creates an actual user-owned Book with:
+
+OwnerId = current user
+Status = OWNED
+IsCatalogue = false
+
+Therefore that book must be recognized as an eligible offer.
+
+============================================================
+7. TRACE THE REQUEST EXCHANGE BUG
+============================================================
+
+Inspect the CURRENT implementation, especially:
+
+frontend/src/pages/BookDetailsPage.tsx
+
+Trace:
+
+Request Exchange
+        ↓
+openChooser
+        ↓
+GET /api/users/{me}/library
+        ↓
+library response
+        ↓
+frontend mapping/transformation
+        ↓
+eligibility filtering
+        ↓
+offer book list
+        ↓
+selected offeredBookId
+        ↓
+POST /api/exchangerequests
+
+Determine exactly why the user's acquired book is being excluded.
+
+Verify:
+
+1. What does GET /api/users/{me}/library return?
+2. Does it contain the acquired copy?
+3. What is its ID?
+4. What is its ownerId?
+5. What is its status?
+6. What is its isCatalogue value?
+7. What exact frontend condition filters it out?
+8. Is the frontend accidentally using catalogueId instead of copyId?
+9. Is it treating "Purchased" as a different ownership state?
+10. Is it incorrectly filtering all purchased/acquired books?
+11. Is a stale localStorage purchase record interfering?
+12. Is the requested listing ID being compared against the wrong book ID?
+13. Does the selected offeredBookId correspond to the backend-owned Book row?
+
+DO NOT hardcode any book IDs.
+
+DO NOT special-case a specific title.
+
+DO NOT remove all eligibility filtering.
+
+Fix the actual general condition/data mapping.
+
+============================================================
+8. REQUEST SUBMISSION
+============================================================
+
+After the chooser is fixed, verify the submission path.
+
+The request must send the backend Book ID of the user's actual owned offer book.
+
+Example:
+
+Catalogue book:
+    X
+
+Acquired user-owned copy:
+    Y
+
+The request MUST use:
+
+offeredBookId = Y
+
+NOT:
+
+offeredBookId = X
+
+Do not send:
+
+- catalogueId
+- localStorage purchase record ID
+- frontend-only purchase identifier
+
+The existing ExchangeRequestsController must remain unchanged.
+
+Its existing ownership validation should continue to protect the operation.
+
+============================================================
+9. OBSERVED ISSUE #3 — ADMIN NAVIGATION IS WRONG
+============================================================
+
+CURRENT OBSERVED BEHAVIOR:
+
+When logged in as ADMIN, the navigation currently exposes user-facing pages such as:
+
+- My Library
+- My Listings
+- Requests
+
+This is incorrect.
+
+The admin should NOT be presented with normal user exchange-management navigation.
+
+============================================================
+10. REQUIRED ADMIN NAVIGATION
+============================================================
+
+ADMIN should have access to:
+
+- Marketplace
+- Admin Dashboard
+- Admin Book Management
+- Admin Category Management
+- existing profile/notification controls if already present
+
+ADMIN should NOT have navigation items for:
+
+- My Library
+- My Listings
+- Requests
+
+Do NOT delete the routes themselves.
+
+Normal users still need those routes.
+
+Only correct the role-based navigation/visibility.
+
+============================================================
+11. REQUIRED NORMAL USER NAVIGATION
+============================================================
+
+NORMAL USER navigation should remain unchanged and continue to provide the existing user functionality, including where currently applicable:
+
+- Marketplace
+- My Library
+- My Listings
+- Requests
+- History
+- profile/notifications
+
+Do not break user navigation while fixing admin navigation.
+
+============================================================
+12. ADMIN CATALOGUE RULE
+============================================================
+
+Admin-created books remain catalogue books.
+
+Admin:
+
+Add Book
+→ Title
+→ Author
+→ Category
+→ INR Cost
+→ Create
+
+Result:
+
+- appears in Marketplace
+- available for mock purchase
+- does not appear in admin's Library
+- does not require exchange listing
+- does not create exchange request
+- is not treated as an admin personal book
+
+Do not alter this existing behavior.
+
+============================================================
+13. PURCHASE RULE
+============================================================
+
+Buying remains a MOCK purchase.
+
+Do not introduce real payments.
+
+Do not introduce:
+
+- Payment entity
+- Order entity
+- Purchase entity
+- ReadingAccess entity
+- PDF infrastructure
+- EPUB infrastructure
+- file upload system
+
+The existing acquire endpoint is the backend ownership bridge.
+
+The intended model remains:
+
+Catalogue book
+        ↓
+Mock purchase
+        ↓
+Acquire user-owned Book copy
+        ↓
+Library
+        ↓
+Read
+        ↓
+List
+        ↓
+Exchange
+
+============================================================
+14. STALE 404 DATA
+============================================================
+
+The browser may show old requests such as:
+
+/api/books/90059
+/api/books/90064
+
+These may be stale mock-purchase records or development/test data.
+
+Do NOT redesign the purchase system to accommodate stale data.
+
+Do NOT automatically delete localStorage data.
+
+Do NOT modify the database just to hide these errors.
+
+Determine whether they are stale development data.
+
+If unrelated to the three required bugs, leave them alone and report them separately.
+
+============================================================
+15. NO ARCHITECTURAL CHANGES
+============================================================
+
+Absolutely DO NOT introduce:
+
+- CatalogueBook entity
+- Purchase entity
+- Order entity
+- Payment entity
+- ReadingAccess entity
+- separate ownership system
+- new book ownership architecture
+- PDF storage
+- EPUB storage
+- real payment gateway
+- real purchase transaction system
+- new database tables
+- unnecessary migrations
+
+Reuse the current:
+
+Book
+User
+ExchangeListing
+ExchangeRequest
+History
+Notification
+
+models and APIs.
+
+============================================================
+16. DO NOT MODIFY THE FOLLOWING UNLESS REQUIRED
+============================================================
+
+Do not modify:
+
+- exchange state machine
+- accept/reject logic
+- ownership transfer logic
+- history
+- notifications
+- authentication
+- authorization
+- admin catalogue architecture
+- acquire endpoint
+- database schema
+- reading architecture
+- mock purchase storage
+
+unless inspection proves a change is absolutely necessary for one of the three specified bugs.
+
+Prefer frontend-only fixes.
+
+============================================================
+17. IMPLEMENTATION PROCESS
+============================================================
+
+Before changing anything:
+
+1. Inspect the current repository.
+2. Read the relevant frontend components.
+3. Read the relevant backend controllers.
+4. Identify the exact cause of each bug.
+5. Make the smallest possible change.
+6. Reuse existing APIs/components/state.
+7. Do not refactor unrelated code.
+8. Do not rewrite working functionality.
+
+If a backend change appears necessary, prove why it is necessary before making it.
+
+============================================================
+18. REQUIRED VERIFICATION
+============================================================
+
+Run:
+
+npm run build
+npm run lint
+
+If backend files are changed, also run:
+
+dotnet build
+dotnet test
+
+============================================================
+19. MANUAL TEST CASES
+============================================================
+
+TEST A — LIST PURCHASED BOOK
+
+Normal user:
+
+1. Have an acquired/purchased book in Library.
+2. Open List for Exchange.
+3. Submit listing.
+
+Expected:
+
+- request succeeds
+- no permanent "LISTING..." state
+- dialog closes
+- success feedback
+- book becomes LISTED
+- My Listings shows the listing
+
+------------------------------------------------------------
+
+TEST B — REQUEST EXCHANGE
+
+User A:
+
+1. Own/acquire Book A.
+2. List Book A.
+
+User B:
+
+1. Own/acquire Book B.
+2. Keep Book B in OWNED state.
+
+User B:
+
+Marketplace
+→ Book A
+→ Request Exchange
+
+Expected:
+
+Book B appears as an eligible offer.
+
+Select Book B.
+
+Submit.
+
+Expected:
+
+POST /api/exchangerequests succeeds.
+
+------------------------------------------------------------
+
+TEST C — OFFER ELIGIBILITY
+
+The chooser MUST NOT show:
+
+- another user's book
+- requested Book A
+- LISTED books
+- EXCHANGED books
+- unpurchased catalogue books
+- nonexistent/stale book records
+
+------------------------------------------------------------
+
+TEST D — ADMIN NAVIGATION
+
+Login as ADMIN.
+
+Expected:
+
+Marketplace
+Admin Dashboard
+Admin Book Management
+Admin Category Management
+existing profile/notification controls
+
+NOT:
+
+My Library
+My Listings
+Requests
+
+Then login as USER.
+
+Expected:
+
+normal user navigation remains unchanged.
+
+============================================================
+20. FINAL IMPLEMENTATION RULE
+============================================================
+
+Make ONLY these three corrections:
+
+1. Fix List for Exchange UI completion after successful listing.
+2. Fix Request Exchange offer-book eligibility.
+3. Hide user-only navigation from ADMIN.
+
+Everything else should remain exactly as it currently works.
+
+Do not add new features.
+
+Do not redesign anything.
+
+Do not "improve" unrelated code.
+
+============================================================
+21. FINAL REPORT
+============================================================
+
+After implementation, report ONLY:
+
+1. Root cause of List for Exchange UI hang
+2. Fix applied
+3. Root cause of Request Exchange eligibility bug
+4. Fix applied
+5. Admin navigation fix
+6. Files changed
+7. npm run build result
+8. npm run lint result
+9. dotnet build/test result if backend was changed
+10. Any unrelated remaining issue, such as stale 404 development IDs
+
+STOP after completing these corrections.

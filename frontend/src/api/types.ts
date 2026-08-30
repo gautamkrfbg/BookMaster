@@ -16,9 +16,12 @@ export type RequirementStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | string;
 export interface BookListItem {
   id: number;
   title: string;
+  author: string;
   ownerId: number;
   categoryId: number;
   status: BookStatus;
+  price: number;
+  isCatalogue: boolean;
 }
 
 export interface CategoryItem {

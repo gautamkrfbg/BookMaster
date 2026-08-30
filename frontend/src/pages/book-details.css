@@ -81,6 +81,18 @@
   max-width: 22ch;
 }
 
+.bd-author {
+  margin: 8px 0 0;
+  color: var(--bm-secondary);
+  font-size: 17px;
+}
+
+.bd-price {
+  color: var(--bm-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .bd-meta {
   margin-top: 20px;
   display: flex;
@@ -334,6 +346,59 @@
 /* States reuse .empty from dashboard.css */
 .bd .empty {
   margin-top: 28px;
+}
+
+/* Mock purchase panel */
+.bd-shop {
+  margin-top: 22px;
+  padding: 18px 20px;
+  background: var(--bm-surface-container-lowest);
+  border: 1px solid var(--bm-outline-variant);
+  border-left: 3px solid var(--bm-primary);
+  border-radius: var(--bm-radius-lg);
+}
+
+.bd-shop--owned {
+  background: var(--bm-surface-container-low);
+  border-left-color: var(--bm-primary-fixed-dim);
+}
+
+.bd-shop__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.bd-shop__title {
+  margin: 0;
+  font-family: var(--bm-font-display);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--bm-on-surface);
+}
+
+.bd-shop__copy {
+  margin: 6px 0 0;
+  color: var(--bm-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.pill--purchased {
+  background: #dcebe7;
+  color: var(--bm-primary);
+}
+
+.bd-buy__note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--bm-radius-md);
+  background: var(--bm-surface-container-low);
+  color: var(--bm-outline);
+  font-size: 13px;
 }
 
 .visually-hidden {

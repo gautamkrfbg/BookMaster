@@ -56,6 +56,7 @@ function formatDate(value: string): string {
 export function HistoryPage() {
   const { session } = useAuth();
   const user = session?.user ?? null;
+  const token = session?.token ?? null;
   const myId = user ? Number(user.id) : -1;
 
   const [payload, setPayload] = useState<HistoryPayload | null>(null);
@@ -64,15 +65,15 @@ export function HistoryPage() {
 
   const runFetch = useCallback(async (): Promise<HistoryPayload> => {
     const [history, requests, listings, books, categories, users] = await Promise.all([
-      apiGet<HistoryItem[]>(`/users/${myId}/exchange-history`),
-      apiGet<ExchangeRequestItem[]>('/exchangerequests'),
+      apiGet<HistoryItem[]>(`/users/${myId}/exchange-history`, token),
+      apiGet<ExchangeRequestItem[]>('/exchangerequests', token),
       apiGet<ExchangeListingItem[]>('/exchangelistings?pageSize=200'),
       apiGet<BookListItem[]>('/books?pageSize=200'),
       apiGet<CategoryItem[]>('/categories'),
       apiGet<UserListItem[]>('/users'),
     ]);
     return { history, requests, listings, books, categories, users };
-  }, [myId]);
+  }, [myId, token]);
 
   useEffect(() => {
     let active = true;

@@ -34,14 +34,19 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id}/library")]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<BookDto>>> GetLibrary(long id)
     {
+        if (!User.Identity!.IsAuthenticated) return Unauthorized();
+        if (id != User.GetUserId() && User.GetUserRole() != Roles.Admin)
+            return Forbid();
+
         var exists = await _db.Users.AnyAsync(u => u.Id == id);
         if (!exists) return NotFound();
 
         var books = await _db.Books
-            .Where(b => b.OwnerId == id)
-            .Select(b => new BookDto(b.Id, b.Title, b.OwnerId, b.CategoryId, b.Status))
+            .Where(b => b.OwnerId == id && !b.IsCatalogue)
+            .Select(b => new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue))
             .ToListAsync();
         return Ok(books);
     }
@@ -61,8 +66,13 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id}/exchange-history")]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<HistoryDto>>> GetExchangeHistory(long id)
     {
+        if (!User.Identity!.IsAuthenticated) return Unauthorized();
+        if (id != User.GetUserId() && User.GetUserRole() != Roles.Admin)
+            return Forbid();
+
         var history = await _db.History
             .Where(h => h.Request!.RequesterId == id
                 || h.Request!.Listing!.Book!.OwnerId == id)

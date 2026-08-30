@@ -210,4 +210,184 @@ public class UsersControllerTests
 
         Assert.IsType<ForbidResult>(result.Result);
     }
+
+    [Fact]
+    public async Task GetLibrary_ReturnsUnauthorized_WhenAnonymous()
+    {
+        var db = TestDbFactory.Create();
+        var alice = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        db.Users.Add(alice);
+        await db.SaveChangesAsync();
+
+        var controller = new UsersController(db);
+        TestAuth.SetAnonymous(controller);
+
+        var result = await controller.GetLibrary(alice.Id);
+
+        Assert.IsType<UnauthorizedResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetLibrary_ReturnsForbidden_ForAnotherUser()
+    {
+        var db = TestDbFactory.Create();
+        var alice = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        var bob = new User { Name = "Bob", Email = "bob@example.com", PasswordHash = "x", Role = "USER" };
+        db.Users.AddRange(alice, bob);
+        await db.SaveChangesAsync();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, alice.Id, alice.Role, alice.Name);
+
+        var result = await controller.GetLibrary(bob.Id);
+
+        Assert.IsType<ForbidResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetLibrary_ReturnsOk_ForOwner()
+    {
+        var db = TestDbFactory.Create();
+        var alice = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        var category = new Category { Name = "Programming" };
+        db.Users.Add(alice);
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
+        db.Books.Add(new Book { Title = "Clean Code", OwnerId = alice.Id, CategoryId = category.Id, Status = BookStatus.Owned, IsCatalogue = false });
+        await db.SaveChangesAsync();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, alice.Id, alice.Role, alice.Name);
+
+        var result = await controller.GetLibrary(alice.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var books = Assert.IsType<List<BookDto>>(ok.Value);
+        Assert.Single(books);
+    }
+
+    [Fact]
+    public async Task GetLibrary_ReturnsOk_ForAdmin()
+    {
+        var db = TestDbFactory.Create();
+        var alice = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        var category = new Category { Name = "Programming" };
+        db.Users.Add(alice);
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
+        db.Books.Add(new Book { Title = "Clean Code", OwnerId = alice.Id, CategoryId = category.Id, Status = BookStatus.Owned, IsCatalogue = false });
+        await db.SaveChangesAsync();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, 999, "ADMIN", "Admin");
+
+        var result = await controller.GetLibrary(alice.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var books = Assert.IsType<List<BookDto>>(ok.Value);
+        Assert.Single(books);
+    }
+
+    private static async Task<(AppDbContext db, User owner, User requester, User stranger)> SeedExchangeHistory()
+    {
+        var db = TestDbFactory.Create();
+        var owner = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        var requester = new User { Name = "Bob", Email = "bob@example.com", PasswordHash = "x", Role = "USER" };
+        var stranger = new User { Name = "Carol", Email = "carol@example.com", PasswordHash = "x", Role = "USER" };
+        var category = new Category { Name = "Programming" };
+        db.Users.AddRange(owner, requester, stranger);
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
+        var listedBook = new Book { Title = "Clean Code", OwnerId = owner.Id, CategoryId = category.Id, Status = BookStatus.Listed };
+        var offeredBook = new Book { Title = "Effective Java", OwnerId = requester.Id, CategoryId = category.Id, Status = BookStatus.Owned };
+        db.Books.AddRange(listedBook, offeredBook);
+        await db.SaveChangesAsync();
+
+        var listing = new ExchangeListing { BookId = listedBook.Id, WantedType = "Effective Java" };
+        db.ExchangeListings.Add(listing);
+        await db.SaveChangesAsync();
+
+        var request = new ExchangeRequest { ListingId = listing.Id, RequesterId = requester.Id, OfferedBookId = offeredBook.Id, Status = ExchangeRequestStatus.Accepted };
+        db.ExchangeRequests.Add(request);
+        await db.SaveChangesAsync();
+
+        db.History.Add(new History { RequestId = request.Id, CompletedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+
+        return (db, owner, requester, stranger);
+    }
+
+    [Fact]
+    public async Task GetExchangeHistory_ReturnsUnauthorized_WhenAnonymous()
+    {
+        var (db, requester, _, _) = await SeedExchangeHistory();
+
+        var controller = new UsersController(db);
+        TestAuth.SetAnonymous(controller);
+
+        var result = await controller.GetExchangeHistory(requester.Id);
+
+        Assert.IsType<UnauthorizedResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetExchangeHistory_ReturnsForbidden_ForAnotherUser()
+    {
+        var (db, owner, _, stranger) = await SeedExchangeHistory();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, stranger.Id, stranger.Role, stranger.Name);
+
+        var result = await controller.GetExchangeHistory(owner.Id);
+
+        Assert.IsType<ForbidResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetExchangeHistory_ReturnsOk_ForRequester()
+    {
+        var (db, _, requester, _) = await SeedExchangeHistory();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, requester.Id, requester.Role, requester.Name);
+
+        var result = await controller.GetExchangeHistory(requester.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var history = Assert.IsType<List<HistoryDto>>(ok.Value);
+        Assert.Single(history);
+    }
+
+    [Fact]
+    public async Task GetExchangeHistory_ReturnsOk_ForListedBookOwner()
+    {
+        var (db, owner, _, _) = await SeedExchangeHistory();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, owner.Id, owner.Role, owner.Name);
+
+        var result = await controller.GetExchangeHistory(owner.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var history = Assert.IsType<List<HistoryDto>>(ok.Value);
+        Assert.Single(history);
+    }
+
+    [Fact]
+    public async Task GetExchangeHistory_ReturnsOk_ForAdmin()
+    {
+        var (db, _, requester, _) = await SeedExchangeHistory();
+
+        var controller = new UsersController(db);
+        TestAuth.SetUser(controller, 999, "ADMIN", "Admin");
+
+        var result = await controller.GetExchangeHistory(requester.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var history = Assert.IsType<List<HistoryDto>>(ok.Value);
+        Assert.Single(history);
+    }
 }

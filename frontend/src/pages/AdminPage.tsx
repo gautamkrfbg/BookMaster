@@ -198,6 +198,24 @@ function AdminContent({ stats }: { stats: AdminStats }) {
           <strong>{stats.exchangesCompleted.toLocaleString()}</strong>
         </div>
       </section>
+
+      <section className="adm-quick" aria-labelledby="adm-quick-title">
+        <h2 id="adm-quick-title" className="adm-glance__title">
+          Management
+        </h2>
+        <div className="adm-glance__row">
+          <span>Add or remove books from the catalog</span>
+          <Link className="dash-section__link" to="/admin/books">
+            Open book catalog <ArrowRightIcon size={14} />
+          </Link>
+        </div>
+        <div className="adm-glance__row">
+          <span>View or add book categories</span>
+          <Link className="dash-section__link" to="/admin/categories">
+            Manage categories <ArrowRightIcon size={14} />
+          </Link>
+        </div>
+      </section>
     </>
   );
 }

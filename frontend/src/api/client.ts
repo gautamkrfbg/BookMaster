@@ -1,4 +1,4 @@
-import type { AuthResponse } from './types';
+import type { AuthResponse, BookListItem } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -76,6 +76,10 @@ export function apiPost<T>(
   }) as Promise<T>;
 }
 
+export function acquireCopy(id: number, token?: string | null): Promise<BookListItem> {
+  return apiPost<BookListItem>(`/books/${id}/acquire`, {}, token);
+}
+
 export function apiPut<T>(
   path: string,
   payload: unknown,
@@ -99,4 +103,11 @@ export async function apiGet<T>(path: string, token?: string | null): Promise<T>
   }
   if (!res.ok) throw new ApiError(res.status, 'Request failed.');
   return (await res.json()) as T;
+}
+
+export function apiDelete(path: string, token?: string | null): Promise<unknown> {
+  return request(path, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
 }

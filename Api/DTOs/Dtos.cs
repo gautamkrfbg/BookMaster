@@ -19,9 +19,15 @@ public record AuthResponseDto(string Token, UserDto User);
 public record CategoryDto(long Id, string Name);
 public record CreateCategoryDto([Required, MaxLength(255)] string Name);
 
-public record BookDto(long Id, string Title, long OwnerId, long CategoryId, string Status);
-public record CreateBookDto([Required, MaxLength(255)] string Title, long CategoryId);
+public record BookDto(long Id, string Title, string Author, long OwnerId, long CategoryId, string Status, decimal Price, bool IsCatalogue);
+public record CreateBookDto([Required, MaxLength(255)] string Title, long CategoryId, [MaxLength(255)] string? Author = null);
 public record UpdateBookDto([Required, MaxLength(255)] string Title, long CategoryId, [Required, MaxLength(50)] string Status);
+
+public record CreateAdminBookDto(
+    [Required, MaxLength(255)] string Title,
+    [Required, MaxLength(255)] string Author,
+    long CategoryId,
+    [Range(0.01, 99999999.99)] decimal Price);
 
 public record NotificationDto(long Id, long UserId, bool IsRead);
 

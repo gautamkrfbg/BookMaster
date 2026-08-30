@@ -30,7 +30,7 @@ public class BooksController : ControllerBase
             .OrderBy(b => b.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(b => new BookDto(b.Id, b.Title, b.OwnerId, b.CategoryId, b.Status))
+            .Select(b => new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue))
             .ToListAsync();
 
         return Ok(books);
@@ -41,7 +41,7 @@ public class BooksController : ControllerBase
     {
         var b = await _db.Books.FindAsync(id);
         if (b == null) return NotFound();
-        return Ok(new BookDto(b.Id, b.Title, b.OwnerId, b.CategoryId, b.Status));
+        return Ok(new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue));
     }
 
     [HttpPost]
@@ -60,13 +60,42 @@ public class BooksController : ControllerBase
         var book = new Book
         {
             Title = dto.Title.Trim(),
+            Author = (dto.Author ?? string.Empty).Trim(),
             OwnerId = ownerId,
             CategoryId = dto.CategoryId,
             Status = BookStatus.Owned
         };
         _db.Books.Add(book);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = book.Id }, new BookDto(book.Id, book.Title, book.OwnerId, book.CategoryId, book.Status));
+        return CreatedAtAction(nameof(GetById), new { id = book.Id }, new BookDto(book.Id, book.Title, book.Author, book.OwnerId, book.CategoryId, book.Status, book.Price, book.IsCatalogue));
+    }
+
+    [HttpPost("{id}/acquire")]
+    [Authorize]
+    public async Task<ActionResult<BookDto>> Acquire(long id)
+    {
+        if (!User.Identity!.IsAuthenticated) return Unauthorized();
+
+        var catalogueBook = await _db.Books.FindAsync(id);
+        if (catalogueBook == null) return NotFound();
+        if (!catalogueBook.IsCatalogue) return BadRequest("Only catalogue books can be purchased.");
+
+        var ownerId = User.GetUserId();
+        if (!await _db.Users.AnyAsync(u => u.Id == ownerId))
+            return Unauthorized("Account no longer exists.");
+
+        var copy = new Book
+        {
+            Title = catalogueBook.Title,
+            Author = catalogueBook.Author,
+            OwnerId = ownerId,
+            CategoryId = catalogueBook.CategoryId,
+            Price = catalogueBook.Price,
+            Status = BookStatus.Owned
+        };
+        _db.Books.Add(copy);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetById), new { id = copy.Id }, new BookDto(copy.Id, copy.Title, copy.Author, copy.OwnerId, copy.CategoryId, copy.Status, copy.Price, copy.IsCatalogue));
     }
 
     [HttpPut("{id}")]

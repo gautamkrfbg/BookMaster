@@ -222,3 +222,110 @@
     padding: 28px 24px;
   }
 }
+
+/* ---------- Admin: book catalog ---------- */
+.abm-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bm-primary);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.abm-back:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.abm-table {
+  margin-top: 20px;
+  border: 1px solid var(--bm-outline-variant);
+  border-radius: var(--bm-radius-lg);
+  overflow: hidden;
+  background: var(--bm-surface-container-lowest);
+}
+
+.abm-table__row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2.2fr) minmax(140px, 1.6fr) minmax(120px, 1.2fr) 90px 72px 150px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bm-outline-variant);
+  font-size: 14px;
+  color: var(--bm-on-surface);
+}
+
+.abm-table__row:last-child {
+  border-bottom: none;
+}
+
+.abm-table__row--head {
+  background: var(--bm-surface-container-low);
+  color: var(--bm-outline);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.abm-table__title {
+  color: var(--bm-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.abm-table__title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.abm-table__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.abm-remove {
+  color: var(--bm-error);
+}
+
+.abm-remove.dash-cta--primary {
+  background: var(--bm-error);
+  color: var(--bm-on-primary);
+}
+
+.abm-note {
+  margin-top: 22px;
+  color: var(--bm-outline);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .abm-table {
+    border: none;
+    background: transparent;
+  }
+
+  .abm-table__row {
+    grid-template-columns: 1fr 150px;
+    border: 1px solid var(--bm-outline-variant);
+    border-radius: var(--bm-radius-lg);
+    margin-bottom: 12px;
+    background: var(--bm-surface-container-lowest);
+    padding: 14px 16px;
+    font-size: 14px;
+  }
+
+  .abm-table__row--head {
+    display: none;
+  }
+
+  .abm-table__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

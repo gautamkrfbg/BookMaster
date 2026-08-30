@@ -11,6 +11,8 @@ import type {
 import { useAuth } from '../auth/useAuth';
 import { AppNav } from '../components/AppNav';
 import { SearchIcon } from '../components/icons';
+import { formatINR } from '../lib/price';
+import { hasPurchased } from '../lib/purchases';
 import './dashboard.css';
 import './marketplace.css';
 
@@ -24,10 +26,13 @@ interface MarketplacePayload {
 interface MarketplaceItem {
   key: number;
   bookId: number;
+  kind: 'purchase' | 'exchange';
   title: string;
+  author: string;
   categoryName: string;
   ownerName: string;
   wantedType: string;
+  price: number;
   tone: string;
 }
 
@@ -98,18 +103,40 @@ export function MarketplacePage() {
     const out: MarketplaceItem[] = [];
     const seen = new Set<number>();
     for (const listing of payload.listings) {
-      if (seen.has(listing.id)) continue;
+      if (seen.has(listing.bookId)) continue;
       const book = booksById.get(listing.bookId);
       if (!book || book.ownerId === myId) continue;
-      seen.add(listing.id);
+      seen.add(listing.bookId);
       out.push({
         key: listing.id,
         bookId: book.id,
+        kind: 'exchange',
         title: book.title,
+        author: book.author,
         categoryName: categoriesById.get(book.categoryId)?.name ?? 'Book',
         ownerName: usersById.get(book.ownerId)?.name ?? 'A reader',
         wantedType: listing.wantedType,
+        price: book.price,
         tone: toneClass(listing.id),
+      });
+    }
+    for (const book of payload.books) {
+      if (seen.has(book.id)) continue;
+      if (!book.isCatalogue) continue;
+      if (book.ownerId === myId) continue;
+      if (hasPurchased(myId, book.id)) continue;
+      seen.add(book.id);
+      out.push({
+        key: book.id,
+        bookId: book.id,
+        kind: 'purchase',
+        title: book.title,
+        author: book.author,
+        categoryName: categoriesById.get(book.categoryId)?.name ?? 'Book',
+        ownerName: usersById.get(book.ownerId)?.name ?? 'BookMaster',
+        wantedType: '',
+        price: book.price,
+        tone: toneClass(book.id),
       });
     }
     return out;
@@ -192,7 +219,7 @@ export function MarketplacePage() {
   const noun = items.length === 1 ? 'book' : 'books';
   const meta = activeFilters
     ? `Showing ${items.length} ${noun} found for your search.`
-    : `${items.length} ${noun} available for exchange from other readers.`;
+    : `${items.length} ${noun} available in the Marketplace — buy new copies or swap through exchanges.`;
 
   return (
     <div className="auth-layout">
@@ -203,7 +230,7 @@ export function MarketplacePage() {
             Discover your next book
           </h1>
           <p className="bm-body-lg mkt-head__copy">
-            Browse books listed by other readers and find something worth exchanging.
+            Discover books to buy, or swap titles with other readers through exchanges.
           </p>
         </section>
 
@@ -271,10 +298,10 @@ export function MarketplacePage() {
           ) : (
             <section className="empty" aria-labelledby="mkt-empty-title">
               <h2 id="mkt-empty-title" className="empty__title">
-                Nothing to exchange yet
+                Nothing in the Marketplace yet
               </h2>
               <p className="empty__copy">
-                There aren&apos;t any books available for exchange right now.
+                There aren&apos;t any books available right now. Check back soon.
               </p>
               <Link className="dash-cta dash-cta--primary" to="/library">
                 Explore my library
@@ -302,10 +329,26 @@ function BookCard({ item }: { item: MarketplaceItem }) {
       </div>
       <div className="book-card__body">
         <h3 className="book-card__title">{item.title}</h3>
-        <p className="book-card__meta">{item.categoryName}</p>
-        <span className="pill pill--listed book-card__pill">LISTED</span>
-        <p className="book-card__wanted">Looking for: {item.wantedType}</p>
-        <p className="book-card__owner">Listed by {item.ownerName}</p>
+        <p className="book-card__meta">
+          {item.kind === 'purchase' && item.author.trim().length > 0
+            ? `${item.author} · ${item.categoryName}`
+            : item.categoryName}
+        </p>
+        {item.kind === 'purchase' ? (
+          <span className="pill pill--purchase book-card__pill">
+            Buy for {formatINR(item.price)}
+          </span>
+        ) : (
+          <span className="pill pill--listed book-card__pill">LISTED</span>
+        )}
+        {item.kind === 'exchange' ? (
+          <>
+            <p className="book-card__wanted">Looking for: {item.wantedType}</p>
+            <p className="book-card__owner">Listed by {item.ownerName}</p>
+          </>
+        ) : (
+          <p className="book-card__owner">Sold by {item.ownerName}</p>
+        )}
       </div>
       <div className="book-card__foot">
         <Link className="dash-section__link" to={`/books/${item.bookId}`}>

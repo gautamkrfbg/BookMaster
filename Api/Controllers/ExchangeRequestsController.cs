@@ -16,19 +16,45 @@ public class ExchangeRequestsController : ControllerBase
     public ExchangeRequestsController(AppDbContext db) => _db = db;
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<ExchangeRequestDto>>> GetAll()
     {
-        var requests = await _db.ExchangeRequests
+        if (!User.Identity!.IsAuthenticated) return Unauthorized();
+
+        var query = _db.ExchangeRequests.AsQueryable();
+        if (User.GetUserRole() != Roles.Admin)
+        {
+            var userId = User.GetUserId();
+            query = query.Where(r => r.RequesterId == userId
+                || r.Listing!.Book!.OwnerId == userId
+                || r.OfferedBook!.OwnerId == userId);
+        }
+
+        var requests = await query
             .Select(r => new ExchangeRequestDto(r.Id, r.ListingId, r.RequesterId, r.OfferedBookId, r.Status))
             .ToListAsync();
         return Ok(requests);
     }
 
     [HttpGet("{id}")]
+    [Authorize]
     public async Task<ActionResult<ExchangeRequestDto>> GetById(long id)
     {
-        var r = await _db.ExchangeRequests.FindAsync(id);
+        if (!User.Identity!.IsAuthenticated) return Unauthorized();
+
+        var r = await _db.ExchangeRequests
+            .Include(x => x.Listing!).ThenInclude(l => l.Book)
+            .Include(x => x.OfferedBook)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (r == null) return NotFound();
+
+        var userId = User.GetUserId();
+        if (User.GetUserRole() != Roles.Admin
+            && r.RequesterId != userId
+            && r.Listing!.Book!.OwnerId != userId
+            && r.OfferedBook!.OwnerId != userId)
+            return Forbid();
+
         return Ok(new ExchangeRequestDto(r.Id, r.ListingId, r.RequesterId, r.OfferedBookId, r.Status));
     }
 
@@ -52,7 +78,7 @@ public class ExchangeRequestsController : ControllerBase
         if (offeredBook.OwnerId != requesterId)
             return BadRequest("You must own the offered book.");
 
-        if (offeredBook.Status != BookStatus.Owned)
+        if (offeredBook.Status != BookStatus.Owned && offeredBook.Status != BookStatus.Listed)
             return BadRequest("Offered book is not available for exchange.");
 
         if (offeredBook.Id == listing.Book.Id)
@@ -105,7 +131,7 @@ public class ExchangeRequestsController : ControllerBase
 
     private async Task<IActionResult> AcceptSequentialAsync(ExchangeRequest request, Book listingBook, Book offeredBook)
     {
-        if (offeredBook.Status != BookStatus.Owned)
+        if (offeredBook.Status != BookStatus.Owned && offeredBook.Status != BookStatus.Listed)
             return Conflict("Offered book is no longer available.");
 
         var ownerId = listingBook.OwnerId;
@@ -120,6 +146,7 @@ public class ExchangeRequestsController : ControllerBase
         request.Status = ExchangeRequestStatus.Accepted;
 
         await CancelPendingSiblingRequestsAsync(request);
+        await UnlistOfferedBookAsync(offeredBook);
 
         _db.History.Add(new History { RequestId = request.Id, CompletedAt = DateTime.UtcNow });
         _db.Notifications.Add(new Notification { UserId = requesterId, IsRead = false });
@@ -127,6 +154,20 @@ public class ExchangeRequestsController : ControllerBase
 
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private async Task UnlistOfferedBookAsync(Book offeredBook)
+    {
+        var offeredListing = await _db.ExchangeListings
+            .FirstOrDefaultAsync(l => l.BookId == offeredBook.Id);
+        if (offeredListing == null) return;
+
+        var pending = await _db.ExchangeRequests
+            .Where(r => r.ListingId == offeredListing.Id && r.Status == ExchangeRequestStatus.Pending)
+            .ToListAsync();
+
+        _db.ExchangeRequests.RemoveRange(pending);
+        _db.ExchangeListings.Remove(offeredListing);
     }
 
     private async Task<IActionResult> AcceptRelationalAsync(long id, ExchangeRequest request, Book listingBook, Book offeredBook)
@@ -146,27 +187,31 @@ public class ExchangeRequestsController : ControllerBase
                 return Conflict("Request already processed.");
             }
 
-            var bookClaims = new[]
+            var claimedOffered = await _db.Books
+                .Where(b => b.Id == offeredBook.Id
+                    && (b.Status == BookStatus.Owned || b.Status == BookStatus.Listed))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(b => b.OwnerId, ownerId)
+                    .SetProperty(b => b.Status, BookStatus.Exchanged));
+            if (claimedOffered == 0)
             {
-                new { BookId = offeredBook.Id, FromStatus = BookStatus.Owned, NewOwner = ownerId, ConflictMessage = "Offered book is no longer available." },
-                new { BookId = listingBook.Id, FromStatus = BookStatus.Listed, NewOwner = requesterId, ConflictMessage = "Listing is no longer active." }
-            }.OrderBy(c => c.BookId);
+                await transaction.RollbackAsync();
+                return Conflict("Offered book is no longer available.");
+            }
 
-            foreach (var claim in bookClaims)
+            var claimedListing = await _db.Books
+                .Where(b => b.Id == listingBook.Id && b.Status == BookStatus.Listed)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(b => b.OwnerId, requesterId)
+                    .SetProperty(b => b.Status, BookStatus.Exchanged));
+            if (claimedListing == 0)
             {
-                var claimedBooks = await _db.Books
-                    .Where(b => b.Id == claim.BookId && b.Status == claim.FromStatus)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(b => b.OwnerId, claim.NewOwner)
-                        .SetProperty(b => b.Status, BookStatus.Exchanged));
-                if (claimedBooks == 0)
-                {
-                    await transaction.RollbackAsync();
-                    return Conflict(claim.ConflictMessage);
-                }
+                await transaction.RollbackAsync();
+                return Conflict("Listing is no longer active.");
             }
 
             await CancelPendingSiblingRequestsAsync(request);
+            await UnlistOfferedBookAsync(offeredBook);
 
             _db.History.Add(new History { RequestId = request.Id, CompletedAt = DateTime.UtcNow });
             _db.Notifications.Add(new Notification { UserId = requesterId, IsRead = false });

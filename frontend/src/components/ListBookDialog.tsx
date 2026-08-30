@@ -65,6 +65,8 @@ export function ListBookDialog({ books, presetBookId = null, onClose, onListed }
         token,
       );
       onListed();
+      setSaving(false);
+      onClose();
     } catch (caught) {
       setError(`Unable to create listing. ${friendlyError(caught)}`);
       setSaving(false);
@@ -111,8 +113,8 @@ export function ListBookDialog({ books, presetBookId = null, onClose, onListed }
         <form className="bm-modal__form" onSubmit={handleSubmit} noValidate>
           {isPreset ? null : options.length === 0 ? (
             <p className="ls-options__empty">
-              You don’t have any books available to list. Add a book to your library from My
-              Library first.
+              You don’t have any books available to list. Pick up a book from the Marketplace
+              first.
             </p>
           ) : (
             <div className="ls-options" role="radiogroup" aria-label="Books you can list">

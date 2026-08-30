@@ -78,6 +78,7 @@ export function DashboardPage() {
   const { session } = useAuth();
   const user = session?.user ?? null;
   const myId = user ? Number(user.id) : -1;
+  const isAdmin = user?.role === 'ADMIN';
 
   const [payload, setPayload] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,9 +96,9 @@ export function DashboardPage() {
         apiGet<CategoryItem[]>('/categories'),
         apiGet<BookListItem[]>('/books?pageSize=200'),
         apiGet<ExchangeListingItem[]>('/exchangelistings?pageSize=200'),
-        apiGet<ExchangeRequestItem[]>('/exchangerequests'),
-        apiGet<HistoryItem[]>(`/users/${currentUserId}/exchange-history`),
-        apiGet<BookListItem[]>(`/users/${currentUserId}/library`),
+        apiGet<ExchangeRequestItem[]>('/exchangerequests', current.token),
+        apiGet<HistoryItem[]>(`/users/${currentUserId}/exchange-history`, current.token),
+        apiGet<BookListItem[]>(`/users/${currentUserId}/library`, current.token),
         apiGet<NotificationItem[]>(`/users/${currentUserId}/notifications`, current.token),
       ]);
     return {
@@ -353,17 +354,23 @@ export function DashboardPage() {
             <Link className="dash-cta dash-cta--primary" to="/marketplace">
               Explore books
             </Link>
-            <Link className="dash-cta dash-cta--ghost" to="/library">
-              Add a book
-            </Link>
+            {!isAdmin ? (
+              <Link className="dash-cta dash-cta--ghost" to="/library">
+                My library
+              </Link>
+            ) : null}
           </div>
         </section>
 
         <section className="overview" aria-label="Quick overview">
-          <OverviewCard count={myBooks.length} label="My Books" to="/library" />
-          <OverviewCard count={myListings.length} label="Active Listings" to="/listings" />
-          <OverviewCard count={pendingCount} label="Pending Requests" to="/requests" />
-          <OverviewCard count={completedCount} label="Completed Exchanges" to="/requests" />
+          {isAdmin ? null : (
+            <>
+              <OverviewCard count={myBooks.length} label="My Books" to="/library" />
+              <OverviewCard count={myListings.length} label="Active Listings" to="/listings" />
+              <OverviewCard count={pendingCount} label="Pending Requests" to="/requests" />
+              <OverviewCard count={completedCount} label="Completed Exchanges" to="/requests" />
+            </>
+          )}
         </section>
 
         <section className="dash-section" aria-labelledby="discover-heading">
@@ -396,115 +403,121 @@ export function DashboardPage() {
           )}
         </section>
 
-        <section className="dash-section" aria-labelledby="library-heading">
-          <SectionHead
-            id="library-heading"
-            title="My Library"
-            link={{ to: '/library', label: 'View my library' }}
-          />
-          {myBooks.length === 0 ? (
-            <div className="empty">
-              <p className="empty__title">Your library is waiting for its first book.</p>
-              <p className="empty__copy">
-                Add a book to start building your collection.
-              </p>
-              <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/library">
-                Add a book
-              </Link>
-            </div>
-          ) : (
-            <>
-              <ul className="lib-list">
-                {myBooks.slice(0, 3).map((book) => (
-                  <li key={book.id} className="lib-row">
-                    <span
-                      className={`skeleton lib-row__thumb book-cover--${toneClass(book.id)}`}
-                      aria-hidden="true"
-                    >
-                      {initialOf(book.title)}
-                    </span>
-                    <span className="lib-row__info">
-                      <span className="lib-row__title">{book.title}</span>
-                      <span className="lib-row__category">
-                        {categoryName(book.categoryId)}
-                      </span>
-                    </span>
-                    <span className={`pill pill--${book.status.toLowerCase()} lib-row__pill`}>
-                      {book.status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="dash-actions">
-                <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/library">
-                  Add a book
-                </Link>
-                <Link className="dash-section__link" to="/library">
-                  View my library
-                </Link>
-              </div>
-            </>
-          )}
-        </section>
-
-        <div className="dash-cols">
-          <section className="dash-section dash-section--narrow" aria-labelledby="activity-heading">
-            <SectionHead id="activity-heading" title="Exchange activity" />
-            {activities.length === 0 ? (
+        {!isAdmin ? (
+          <section className="dash-section" aria-labelledby="library-heading">
+            <SectionHead
+              id="library-heading"
+              title="My Library"
+              link={{ to: '/library', label: 'View my library' }}
+            />
+            {myBooks.length === 0 ? (
               <div className="empty">
-                <p className="empty__title">No recent exchange activity yet.</p>
-                <p className="empty__copy">Start by exploring the marketplace.</p>
+                <p className="empty__title">Your library is waiting for its first book.</p>
+                <p className="empty__copy">
+                  Browse the Marketplace to pick up a book, or trade books with other readers.
+                </p>
                 <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/marketplace">
                   Browse marketplace
                 </Link>
               </div>
             ) : (
-              <ul className="activity-list">
-                {activities.slice(0, 5).map((item) => (
-                  <ActivityRow key={item.key} item={item} />
-                ))}
-              </ul>
+              <>
+                <ul className="lib-list">
+                  {myBooks.slice(0, 3).map((book) => (
+                    <li key={book.id} className="lib-row">
+                      <span
+                        className={`skeleton lib-row__thumb book-cover--${toneClass(book.id)}`}
+                        aria-hidden="true"
+                      >
+                        {initialOf(book.title)}
+                      </span>
+                      <span className="lib-row__info">
+                        <span className="lib-row__title">{book.title}</span>
+                        <span className="lib-row__category">
+                          {categoryName(book.categoryId)}
+                        </span>
+                      </span>
+                      <span className={`pill pill--${book.status.toLowerCase()} lib-row__pill`}>
+                        {book.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="dash-actions">
+                  <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/marketplace">
+                    Browse marketplace
+                  </Link>
+                  <Link className="dash-section__link" to="/library">
+                    View my library
+                  </Link>
+                </div>
+              </>
             )}
           </section>
+        ) : null}
 
-          <div className="dash-section dash-section--narrow" aria-label="Requests and notifications">
-            <section aria-labelledby="requests-heading">
-              <SectionHead id="requests-heading" title="Requests" />
-              {incomingPending.length + outgoingPending.length === 0 ? (
+        <div className="dash-cols">
+          {!isAdmin ? (
+            <section className="dash-section dash-section--narrow" aria-labelledby="activity-heading">
+              <SectionHead id="activity-heading" title="Exchange activity" />
+              {activities.length === 0 ? (
                 <div className="empty">
-                  <p className="empty__title">No exchange requests yet.</p>
-                  <p className="empty__copy">Browse the marketplace to discover books.</p>
+                  <p className="empty__title">No recent exchange activity yet.</p>
+                  <p className="empty__copy">Start by exploring the marketplace.</p>
+                  <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/marketplace">
+                    Browse marketplace
+                  </Link>
                 </div>
               ) : (
-                <>
-                  <div className="requests-split">
-                    <RequestsColumn
-                      label="Incoming"
-                      count={incomingPending.length}
-                      rows={incomingPending.slice(0, 2).map((r) => ({
-                        key: r.id,
-                        main: `${r.requesterName ?? 'A reader'} wants your ${r.listingBook?.title ?? 'listed book'}`,
-                        offering: `Offering: ${r.offeredBook?.title ?? 'a book'}`,
-                      }))}
-                    />
-                    <RequestsColumn
-                      label="Outgoing"
-                      count={outgoingPending.length}
-                      rows={outgoingPending.slice(0, 2).map((r) => ({
-                        key: r.id,
-                        main: `You requested ${r.listingBook?.title ?? 'a book'}`,
-                        offering: `Offering: ${r.offeredBook?.title ?? 'a book'}`,
-                      }))}
-                    />
-                  </div>
-                  <div className="dash-actions">
-                    <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/requests">
-                      View requests
-                    </Link>
-                  </div>
-                </>
+                <ul className="activity-list">
+                  {activities.slice(0, 5).map((item) => (
+                    <ActivityRow key={item.key} item={item} />
+                  ))}
+                </ul>
               )}
             </section>
+          ) : null}
+
+          <div className="dash-section dash-section--narrow" aria-label="Requests and notifications">
+            {!isAdmin ? (
+              <section aria-labelledby="requests-heading">
+                <SectionHead id="requests-heading" title="Requests" />
+                {incomingPending.length + outgoingPending.length === 0 ? (
+                  <div className="empty">
+                    <p className="empty__title">No exchange requests yet.</p>
+                    <p className="empty__copy">Browse the marketplace to discover books.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="requests-split">
+                      <RequestsColumn
+                        label="Incoming"
+                        count={incomingPending.length}
+                        rows={incomingPending.slice(0, 2).map((r) => ({
+                          key: r.id,
+                          main: `${r.requesterName ?? 'A reader'} wants your ${r.listingBook?.title ?? 'listed book'}`,
+                          offering: `Offering: ${r.offeredBook?.title ?? 'a book'}`,
+                        }))}
+                      />
+                      <RequestsColumn
+                        label="Outgoing"
+                        count={outgoingPending.length}
+                        rows={outgoingPending.slice(0, 2).map((r) => ({
+                          key: r.id,
+                          main: `You requested ${r.listingBook?.title ?? 'a book'}`,
+                          offering: `Offering: ${r.offeredBook?.title ?? 'a book'}`,
+                        }))}
+                      />
+                    </div>
+                    <div className="dash-actions">
+                      <Link className="dash-cta dash-cta--ghost dash-cta--small" to="/requests">
+                        View requests
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </section>
+            ) : null}
 
             <section
               id="dashboard-notifications"

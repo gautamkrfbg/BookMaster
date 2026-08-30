@@ -12,7 +12,12 @@ const NAV_LINKS = [
   { to: '/requests', label: 'Requests' },
 ];
 
-const ADMIN_LINK = { to: '/admin', label: 'Admin Dashboard' };
+const ADMIN_NAV_LINKS = [
+  { to: '/marketplace', label: 'Marketplace' },
+  { to: '/admin', label: 'Admin Dashboard' },
+  { to: '/admin/books', label: 'Admin Book Management' },
+  { to: '/admin/categories', label: 'Admin Category Management' },
+];
 
 interface AppNavProps {
   unreadCount?: number;
@@ -24,7 +29,7 @@ export function AppNav({ unreadCount }: AppNavProps) {
   const location = useLocation();
   const user = session?.user;
 
-  const navLinks = user?.role === 'ADMIN' ? [ADMIN_LINK, ...NAV_LINKS] : NAV_LINKS;
+  const navLinks = user?.role === 'ADMIN' ? ADMIN_NAV_LINKS : NAV_LINKS;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);

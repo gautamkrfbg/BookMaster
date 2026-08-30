@@ -384,3 +384,10 @@
     flex-shrink: 0;
   }
 }
+
+.book-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

@@ -7,6 +7,7 @@ import { useAuth } from '../auth/useAuth';
 import { AppNav } from '../components/AppNav';
 import { CheckIcon, PlusIcon, SearchIcon } from '../components/icons';
 import { ListBookDialog } from '../components/ListBookDialog';
+import { purchasedBookIds } from '../lib/purchases';
 import './dashboard.css';
 import './library.css';
 import './listings.css';
@@ -16,6 +17,7 @@ interface ListingsPayload {
   categories: CategoryItem[];
   listings: ExchangeListingItem[];
   requests: ExchangeRequestItem[];
+  purchased: BookListItem[];
 }
 
 interface ListingCard {
@@ -46,6 +48,7 @@ function toneClass(id: number): string {
 export function ListingsPage() {
   const { session } = useAuth();
   const user = session?.user ?? null;
+  const token = session?.token ?? null;
   const myId = user ? Number(user.id) : -1;
 
   const [payload, setPayload] = useState<ListingsPayload | null>(null);
@@ -61,14 +64,29 @@ export function ListingsPage() {
   const [listedNote, setListedNote] = useState(false);
 
   const runFetch = useCallback(async (): Promise<ListingsPayload> => {
-    const [books, categories, listings, requests] = await Promise.all([
-      apiGet<BookListItem[]>(`/users/${myId}/library`),
+    const [books, categories, listings, requests, purchased] = await Promise.all([
+      apiGet<BookListItem[]>(`/users/${myId}/library`, token),
       apiGet<CategoryItem[]>('/categories'),
       apiGet<ExchangeListingItem[]>('/exchangelistings?pageSize=200'),
-      apiGet<ExchangeRequestItem[]>('/exchangerequests'),
+      apiGet<ExchangeRequestItem[]>('/exchangerequests', token),
+      Promise.all(
+        purchasedBookIds(myId).map(async (bookId) => {
+          try {
+            return await apiGet<BookListItem>(`/books/${bookId}`);
+          } catch {
+            return null;
+          }
+        }),
+      ),
     ]);
-    return { books, categories, listings, requests };
-  }, [myId]);
+    return {
+      books,
+      categories,
+      listings,
+      requests,
+      purchased: purchased.filter((p): p is BookListItem => p !== null),
+    };
+  }, [myId, token]);
 
   useEffect(() => {
     let active = true;
@@ -223,7 +241,14 @@ export function ListingsPage() {
   }
   cards.sort((a, b) => (a.status === 'EXCHANGED' ? 1 : 0) - (b.status === 'EXCHANGED' ? 1 : 0));
 
-  const eligible = books.filter((b) => b.status === 'OWNED' && !listingsByBook.has(b.id));
+  const ownedEligible = books.filter((b) => b.status === 'OWNED' && !listingsByBook.has(b.id));
+  const purchasedEligible = payload.purchased.filter(
+    (p) =>
+      p.status === 'OWNED' &&
+      !listingsByBook.has(p.id) &&
+      !books.some((b) => b.id === p.id),
+  );
+  const eligible = [...ownedEligible, ...purchasedEligible];
   const pendingRequests = payload.requests.filter(
     (r) => r.status === 'PENDING' && myListingIds.has(r.listingId),
   ).length;
@@ -383,10 +408,10 @@ export function ListingsPage() {
                 Your exchange shelf is empty
               </h2>
               <p className="empty__copy">
-                Add a book to your library, then list it for exchange.
+                Purchase a book from the Marketplace, then list it for exchange.
               </p>
-              <Link className="dash-cta dash-cta--primary" to="/library">
-                Go to my library
+              <Link className="dash-cta dash-cta--primary" to="/marketplace">
+                Browse marketplace
               </Link>
             </section>
           ) : eligible.length > 0 ? (
@@ -406,11 +431,11 @@ export function ListingsPage() {
                 Nothing listed yet
               </h2>
               <p className="empty__copy">
-                All of your books are already listed or exchanged. Add more books to your library
-                when you’re ready.
+                All of your books are already listed or exchanged. Pick up another book from the
+                Marketplace when you’re ready.
               </p>
-              <Link className="dash-cta dash-cta--primary" to="/library">
-                Go to my library
+              <Link className="dash-cta dash-cta--primary" to="/marketplace">
+                Browse marketplace
               </Link>
             </section>
           )

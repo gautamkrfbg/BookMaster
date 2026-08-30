@@ -83,11 +83,11 @@ export function RequestsPage() {
       apiGet<BookListItem[]>('/books?pageSize=200'),
       apiGet<CategoryItem[]>('/categories'),
       apiGet<ExchangeListingItem[]>('/exchangelistings?pageSize=200'),
-      apiGet<ExchangeRequestItem[]>('/exchangerequests'),
+      apiGet<ExchangeRequestItem[]>('/exchangerequests', token),
       apiGet<UserListItem[]>('/users'),
     ]);
     return { books, categories, listings, requests, users };
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     let active = true;

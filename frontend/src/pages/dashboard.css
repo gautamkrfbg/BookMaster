@@ -563,6 +563,8 @@
 .pill--rejected { background: var(--bm-error-container); color: var(--bm-on-error-container); }
 .pill--unread { background: var(--bm-primary); color: var(--bm-on-primary); }
 .pill--read { background: var(--bm-surface-container-high); color: var(--bm-secondary); }
+.pill--purchased { background: #dcebe7; color: var(--bm-primary); }
+.pill--purchase { background: #dcebe7; color: var(--bm-primary); }
 
 /* Two-column dashboard areas */
 .dash-cols {

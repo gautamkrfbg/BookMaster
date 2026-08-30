@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ApiError, apiGet, apiPost } from '../api/client';
+import { apiGet } from '../api/client';
 import type { BookListItem, CategoryItem, ExchangeListingItem } from '../api/types';
 import { useAuth } from '../auth/useAuth';
 import { AppNav } from '../components/AppNav';
 import { ListBookDialog } from '../components/ListBookDialog';
-import { ArrowRightIcon, CloseIcon, PlusIcon, SearchIcon } from '../components/icons';
+import { ArrowRightIcon, BookIcon, SearchIcon } from '../components/icons';
+import { purchasedBookIds } from '../lib/purchases';
+import { toast } from '../toast/toastBus';
 import './dashboard.css';
 import './library.css';
 
@@ -31,18 +33,6 @@ function toneClass(id: number): string {
   return `t${((id % 6) + 6) % 6 + 1}`;
 }
 
-function friendlyError(error: unknown): string {
-  if (
-    error instanceof ApiError &&
-    error.status !== 0 &&
-    error.status < 500 &&
-    error.message.length > 0
-  ) {
-    return error.message;
-  }
-  return 'Please try again.';
-}
-
 export function LibraryPage() {
   const { session } = useAuth();
   const user = session?.user ?? null;
@@ -58,22 +48,35 @@ export function LibraryPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [addTitle, setAddTitle] = useState('');
-  const [addCategoryId, setAddCategoryId] = useState<number | null>(null);
-  const [addSaving, setAddSaving] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-
   const [listBook, setListBook] = useState<BookListItem | null>(null);
 
   const runFetch = useCallback(async (): Promise<LibraryPayload> => {
-    const [books, categories, listings] = await Promise.all([
-      apiGet<BookListItem[]>(`/users/${myId}/library`),
+    const [books, categories, listings, purchased] = await Promise.all([
+      apiGet<BookListItem[]>(`/users/${myId}/library`, token),
       apiGet<CategoryItem[]>('/categories'),
       apiGet<ExchangeListingItem[]>('/exchangelistings?pageSize=200'),
+      Promise.all(
+        purchasedBookIds(myId).map(async (bookId) => {
+          try {
+            return await apiGet<BookListItem>(`/books/${bookId}`);
+          } catch {
+            return null;
+          }
+        }),
+      ),
     ]);
-    return { books, categories, listings };
-  }, [myId]);
+    const merged = [...books];
+    for (const purchasedBook of purchased) {
+      if (
+        purchasedBook &&
+        purchasedBook.ownerId === myId &&
+        !merged.some((b) => b.id === purchasedBook.id)
+      ) {
+        merged.push(purchasedBook);
+      }
+    }
+    return { books: merged, categories, listings };
+  }, [myId, token]);
 
   useEffect(() => {
     let active = true;
@@ -95,17 +98,6 @@ export function LibraryPage() {
       active = false;
     };
   }, [runFetch]);
-
-  useEffect(() => {
-    if (!addOpen) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setAddOpen(false);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [addOpen]);
 
   function retry() {
     setLoading(true);
@@ -135,40 +127,18 @@ export function LibraryPage() {
     );
   }
 
-  function openAdd() {
-    setAddTitle('');
-    setAddCategoryId(null);
-    setAddError(null);
-    setAddOpen(true);
-  }
-
-  function closeAdd() {
-    setAddOpen(false);
-  }
-
-  async function submitAdd(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const title = addTitle.trim();
-    if (!token || addCategoryId === null || !title) return;
-    setAddSaving(true);
-    setAddError(null);
-    try {
-      await apiPost<BookListItem>('/books', { title, categoryId: addCategoryId }, token);
-      setAddOpen(false);
-      refreshLibrary();
-    } catch (error) {
-      setAddError(`Unable to add the book. ${friendlyError(error)}`);
-    } finally {
-      setAddSaving(false);
-    }
-  }
-
   function openList(book: BookListItem) {
     setListBook(book);
   }
 
   function closeList() {
     setListBook(null);
+  }
+
+  function handleListed() {
+    setListBook(null);
+    refreshLibrary();
+    toast.success('Book listed for exchange. You can manage it in My Listings.');
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -272,14 +242,13 @@ export function LibraryPage() {
               My Library
             </h1>
             <p className="bm-body-lg lib-head__copy">
-              Your collection of books, ready to be discovered, shared, and exchanged.
+              Books you own or have purchased — trade them with other readers when you&apos;re ready.
             </p>
           </div>
           <div className="dash-head__actions">
-            <button type="button" className="dash-cta dash-cta--primary" onClick={openAdd}>
-              <PlusIcon size={15} />
-              Add a book
-            </button>
+            <Link className="dash-cta dash-cta--ghost" to="/marketplace">
+              Browse marketplace
+            </Link>
           </div>
         </section>
 
@@ -377,13 +346,12 @@ export function LibraryPage() {
               Your library is waiting for its first book.
             </h2>
             <p className="empty__copy">
-              Add a book to start building your collection and give it another reader when
-              you&apos;re ready.
+              Browse the Marketplace to pick up a book, or trade books with other readers through
+              exchanges.
             </p>
-            <button type="button" className="dash-cta dash-cta--primary" onClick={openAdd}>
-              <PlusIcon size={15} />
-              Add a book
-            </button>
+            <Link className="dash-cta dash-cta--primary" to="/marketplace">
+              Browse marketplace
+            </Link>
           </section>
         ) : isEmptyResult ? (
           hasQuery ? (
@@ -415,6 +383,7 @@ export function LibraryPage() {
               <LibraryCard
                 key={book.id}
                 book={book}
+                purchased={purchasedBookIds(myId).includes(book.id)}
                 categoryName={categoriesById.get(book.categoryId)?.name ?? 'Book'}
                 wantedType={listingsByBook.get(book.id)?.wantedType ?? null}
                 onList={() => openList(book)}
@@ -424,108 +393,12 @@ export function LibraryPage() {
         )}
       </main>
 
-      {addOpen ? (
-        <div
-          className="bm-modal"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeAdd();
-          }}
-        >
-          <section
-            className="bm-modal__panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-book-title"
-          >
-            <header className="bm-modal__head">
-              <h2 id="add-book-title" className="bm-headline-sm bm-modal__title">
-                Add a book
-              </h2>
-              <button
-                type="button"
-                className="bm-modal__close"
-                aria-label="Close add book"
-                onClick={closeAdd}
-              >
-                <CloseIcon size={16} />
-              </button>
-            </header>
-            <p className="bm-modal__copy">
-              Add a book to your library so it&apos;s ready to be listed for exchange.
-            </p>
-            <form className="bm-modal__form" onSubmit={submitAdd} noValidate>
-              <div className="bm-modal__field">
-                <label className="bm-modal__label" htmlFor="add-book-title-input">
-                  Title
-                </label>
-                <input
-                  id="add-book-title-input"
-                  className="auth-input"
-                  type="text"
-                  value={addTitle}
-                  onChange={(event) => setAddTitle(event.target.value)}
-                  maxLength={255}
-                  placeholder="Enter the book title"
-                  autoFocus
-                />
-              </div>
-              <div className="bm-modal__field">
-                <label className="bm-modal__label" htmlFor="add-book-category">
-                  Category
-                </label>
-                <select
-                  id="add-book-category"
-                  className="auth-select"
-                  value={addCategoryId ?? ''}
-                  onChange={(event) =>
-                    setAddCategoryId(event.target.value === '' ? null : Number(event.target.value))
-                  }
-                >
-                  <option value="" disabled>
-                    Select a category
-                  </option>
-                  {payload.categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {addError ? (
-                <p className="bm-modal__error" role="alert">
-                  {addError}
-                </p>
-              ) : null}
-
-              <div className="bm-modal__actions">
-                <button
-                  type="submit"
-                  className="dash-cta dash-cta--primary"
-                  disabled={addSaving || addTitle.trim() === '' || addCategoryId === null}
-                >
-                  {addSaving ? 'Adding…' : 'Add book'}
-                </button>
-                <button
-                  type="button"
-                  className="dash-cta dash-cta--ghost"
-                  onClick={closeAdd}
-                  disabled={addSaving}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      ) : null}
-
       {listBook ? (
         <ListBookDialog
           books={[listBook]}
           presetBookId={listBook.id}
           onClose={closeList}
-          onListed={refreshLibrary}
+          onListed={handleListed}
         />
       ) : null}
     </div>
@@ -534,11 +407,13 @@ export function LibraryPage() {
 
 function LibraryCard({
   book,
+  purchased,
   categoryName,
   wantedType,
   onList,
 }: {
   book: BookListItem;
+  purchased: boolean;
   categoryName: string;
   wantedType: string | null;
   onList: () => void;
@@ -547,7 +422,9 @@ function LibraryCard({
     book.status === 'LISTED' ? 'listed' : book.status === 'EXCHANGED' ? 'exchanged' : 'owned';
 
   return (
-    <article className={`book-card${book.status === 'EXCHANGED' ? ' book-card--exchanged' : ''}`}>
+    <article
+      className={`book-card${!purchased && book.status === 'EXCHANGED' ? ' book-card--exchanged' : ''}`}
+    >
       <div className={`book-cover book-cover--${toneClass(book.id)}`} aria-hidden="true">
         <span className="book-cover__initial">{initialOf(book.title)}</span>
         <span className="book-cover__tag">BookMaster</span>
@@ -558,21 +435,55 @@ function LibraryCard({
             {book.title}
           </Link>
         </h3>
-        <p className="book-card__meta">{categoryName}</p>
-        <span className={`pill pill--${statusTone} book-card__pill`}>{book.status}</span>
-        {book.status === 'LISTED' && wantedType ? (
+        <p className="book-card__meta">
+          {book.author.trim().length > 0 ? `${book.author} · ` : ''}
+          {categoryName}
+        </p>
+        {purchased ? (
+          <span className="pill pill--purchased book-card__pill">Purchased</span>
+        ) : (
+          <span className={`pill pill--${statusTone} book-card__pill`}>{book.status}</span>
+        )}
+        {!purchased && book.status === 'LISTED' && wantedType ? (
           <p className="book-card__wanted">Looking for: {wantedType}</p>
         ) : null}
       </div>
       <div className="book-card__foot">
-        {book.status === 'OWNED' ? (
-          <button type="button" className="dash-cta dash-cta--ghost dash-cta--small" onClick={onList}>
-            List for exchange
-          </button>
+        {purchased ? (
+          <div className="book-card__actions">
+            <Link className="dash-cta dash-cta--ghost dash-cta--small" to={`/books/read/${book.id}`}>
+              <BookIcon size={13} />
+              Read
+            </Link>
+            {wantedType === null && book.status !== 'EXCHANGED' ? (
+              <button
+                type="button"
+                className="dash-cta dash-cta--ghost dash-cta--small"
+                onClick={onList}
+              >
+                List for exchange
+              </button>
+            ) : null}
+            <Link className="dash-section__link" to={`/books/${book.id}`}>
+              View book <ArrowRightIcon size={13} />
+            </Link>
+          </div>
         ) : (
-          <Link className="dash-section__link" to={`/books/${book.id}`}>
-            View book <ArrowRightIcon size={13} />
-          </Link>
+          <div className="book-card__actions">
+            <Link className="dash-cta dash-cta--ghost dash-cta--small" to={`/books/read/${book.id}`}>
+              <BookIcon size={13} />
+              Read
+            </Link>
+            {book.status === 'OWNED' ? (
+              <button type="button" className="dash-cta dash-cta--ghost dash-cta--small" onClick={onList}>
+                List for exchange
+              </button>
+            ) : (
+              <Link className="dash-section__link" to={`/books/${book.id}`}>
+                View book <ArrowRightIcon size={13} />
+              </Link>
+            )}
+          </div>
         )}
       </div>
     </article>

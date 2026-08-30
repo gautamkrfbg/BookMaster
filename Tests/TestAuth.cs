@@ -21,4 +21,12 @@ public static class TestAuth
             HttpContext = new DefaultHttpContext { User = user }
         };
     }
+
+    public static void SetAnonymous(ControllerBase controller)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+    }
 }

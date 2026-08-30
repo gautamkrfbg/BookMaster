@@ -86,4 +86,91 @@ public class BooksControllerTests
 
         Assert.IsType<UnauthorizedObjectResult>(result.Result);
     }
+
+    private static async Task<(AppDbContext db, User user, Book catalogue)> SeedCatalogue()
+    {
+        var db = TestDbFactory.Create();
+        var user = new User { Name = "Alice", Email = "alice@example.com", PasswordHash = "x", Role = "USER" };
+        var admin = new User { Name = "Administrator", Email = "admin@example.com", PasswordHash = "x", Role = Roles.Admin };
+        var category = new Category { Name = "Programming" };
+        db.Users.Add(user);
+        db.Users.Add(admin);
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var catalogue = new Book
+        {
+            Title = "Clean Code",
+            Author = "Robert Martin",
+            OwnerId = admin.Id,
+            CategoryId = category.Id,
+            Price = 499m,
+            IsCatalogue = true,
+            Status = BookStatus.Owned
+        };
+        db.Books.Add(catalogue);
+        await db.SaveChangesAsync();
+        return (db, user, catalogue);
+    }
+
+    [Fact]
+    public async Task Acquire_CreatesOwnedCopyForCurrentUser()
+    {
+        var (db, user, catalogue) = await SeedCatalogue();
+        var controller = new BooksController(db);
+        TestAuth.SetUser(controller, user.Id, user.Role, user.Name);
+
+        var result = await controller.Acquire(catalogue.Id);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        var dto = Assert.IsType<BookDto>(created.Value);
+        Assert.Equal(user.Id, dto.OwnerId);
+        Assert.False(dto.IsCatalogue);
+        Assert.Equal(BookStatus.Owned, dto.Status);
+        Assert.Equal(catalogue.Price, dto.Price);
+        Assert.Equal(catalogue.Title, dto.Title);
+
+        var original = await db.Books.FindAsync(catalogue.Id);
+        Assert.Equal(catalogue.OwnerId, original!.OwnerId);
+        Assert.True(original.IsCatalogue);
+    }
+
+    [Fact]
+    public async Task Acquire_ReturnsBadRequest_WhenBookIsNotCatalogue()
+    {
+        var (db, user, _) = await SeedCatalogue();
+        var owned = new Book { Title = "Already Owned", OwnerId = user.Id, CategoryId = 1, Status = BookStatus.Owned };
+        db.Books.Add(owned);
+        await db.SaveChangesAsync();
+
+        var controller = new BooksController(db);
+        TestAuth.SetUser(controller, user.Id, user.Role, user.Name);
+
+        var result = await controller.Acquire(owned.Id);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Acquire_ReturnsUnauthorized_WhenAnonymous()
+    {
+        var (db, _, catalogue) = await SeedCatalogue();
+        var controller = new BooksController(db);
+        TestAuth.SetAnonymous(controller);
+
+        var result = await controller.Acquire(catalogue.Id);
+
+        Assert.IsType<UnauthorizedResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Acquire_ReturnsNotFound_WhenBookMissing()
+    {
+        var (db, user, _) = await SeedCatalogue();
+        var controller = new BooksController(db);
+        TestAuth.SetUser(controller, user.Id, user.Role, user.Name);
+
+        var result = await controller.Acquire(99999);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
 }
