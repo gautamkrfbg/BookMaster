@@ -15,6 +15,7 @@ CREATE TABLE books (
     owner_id BIGINT NOT NULL,
     category_id BIGINT NOT NULL,
     status VARCHAR(50) NOT NULL,
+    pdf_url VARCHAR(500) NULL,
 
     FOREIGN KEY (owner_id)
         REFERENCES users(id)

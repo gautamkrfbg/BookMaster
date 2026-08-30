@@ -15,6 +15,7 @@ CREATE TABLE books (
     owner_id BIGINT NOT NULL,
     category_id BIGINT NOT NULL,
     status NVARCHAR(50) NOT NULL,
+    pdf_url NVARCHAR(500) NULL,
 
     CONSTRAINT FK_books_owner
         FOREIGN KEY (owner_id)

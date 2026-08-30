@@ -46,7 +46,7 @@ public class UsersController : ControllerBase
 
         var books = await _db.Books
             .Where(b => b.OwnerId == id && !b.IsCatalogue)
-            .Select(b => new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue))
+            .Select(b => new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue, b.PdfUrl))
             .ToListAsync();
         return Ok(books);
     }

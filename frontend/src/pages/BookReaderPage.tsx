@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { apiGet } from '../api/client';
+import { apiGet, resolvePdfUrl } from '../api/client';
 import type { BookListItem, CategoryItem } from '../api/types';
 import { useAuth } from '../auth/useAuth';
 import { AppNav } from '../components/AppNav';
@@ -205,6 +205,52 @@ export function BookReaderPage() {
       .reduce((total, chapter) => total + chapter.pages.length, 0);
 
   const authorLabel = book.author.trim().length > 0 ? book.author : 'Unknown author';
+  const pdfUrl = resolvePdfUrl(book.pdfUrl);
+
+  if (pdfUrl) {
+    return (
+      <div className="auth-layout">
+        <AppNav />
+        <main className="rdr">
+          <header className="rdr-topbar">
+            <div className="rdr-topbar__links">
+              <Link className="rdr-back" to={`/books/${book.id}`}>
+                <ArrowLeftIcon size={15} />
+                <span>Book details</span>
+              </Link>
+              <Link className="rdr-back" to="/library">
+                <ArrowLeftIcon size={15} />
+                <span>My Library</span>
+              </Link>
+            </div>
+          </header>
+
+          <section className="rdr-heading" aria-labelledby="rdr-title">
+            <h1 id="rdr-title" className="rdr-title">
+              {book.title}
+            </h1>
+            <p className="rdr-author">{authorLabel}</p>
+            <p className="rdr-category">{payload.categoryName}</p>
+          </section>
+
+          <div className="rdr-pdf">
+            <iframe
+              className="rdr-pdf__frame"
+              src={pdfUrl}
+              title={`${book.title} PDF reader`}
+            />
+            <p className="rdr-note" role="note">
+              If the PDF doesn&rsquo;t display,{' '}
+              <a href={pdfUrl} target="_blank" rel="noreferrer">
+                open it in a new tab
+              </a>
+              .
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-layout">

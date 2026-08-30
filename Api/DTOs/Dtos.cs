@@ -19,7 +19,7 @@ public record AuthResponseDto(string Token, UserDto User);
 public record CategoryDto(long Id, string Name);
 public record CreateCategoryDto([Required, MaxLength(255)] string Name);
 
-public record BookDto(long Id, string Title, string Author, long OwnerId, long CategoryId, string Status, decimal Price, bool IsCatalogue);
+public record BookDto(long Id, string Title, string Author, long OwnerId, long CategoryId, string Status, decimal Price, bool IsCatalogue, string? PdfUrl);
 public record CreateBookDto([Required, MaxLength(255)] string Title, long CategoryId, [MaxLength(255)] string? Author = null);
 public record UpdateBookDto([Required, MaxLength(255)] string Title, long CategoryId, [Required, MaxLength(50)] string Status);
 
@@ -28,6 +28,22 @@ public record CreateAdminBookDto(
     [Required, MaxLength(255)] string Author,
     long CategoryId,
     [Range(0.01, 99999999.99)] decimal Price);
+
+public class CreateAdminBookForm
+{
+    [Required, MaxLength(255)]
+    public string Title { get; set; } = string.Empty;
+
+    [Required, MaxLength(255)]
+    public string Author { get; set; } = string.Empty;
+
+    public long CategoryId { get; set; }
+
+    [Range(0.01, 99999999.99)]
+    public decimal Price { get; set; }
+
+    public IFormFile? Pdf { get; set; }
+}
 
 public record NotificationDto(long Id, long UserId, bool IsRead);
 
