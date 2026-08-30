@@ -42,6 +42,10 @@ public class Book
     [Required, MaxLength(50)]
     public string Status { get; set; } = BookStatus.Owned;
 
+    [Column("pdf_url")]
+    [MaxLength(500)]
+    public string? PdfUrl { get; set; }
+
     public ExchangeListing? ExchangeListing { get; set; }
     public ICollection<ExchangeRequest> OfferedInRequests { get; set; } = new List<ExchangeRequest>();
 }

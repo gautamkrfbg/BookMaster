@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ApiError, apiDelete, apiGet, apiPost } from '../api/client';
+import { ApiError, apiDelete, apiGet, apiPostForm } from '../api/client';
 import type { BookListItem, CategoryItem } from '../api/types';
 import { useAuth } from '../auth/useAuth';
 import { AppNav } from '../components/AppNav';
@@ -45,11 +45,15 @@ export function AdminBooksPage() {
   const [addAuthor, setAddAuthor] = useState('');
   const [addCategoryId, setAddCategoryId] = useState<number | null>(null);
   const [addPrice, setAddPrice] = useState('');
+  const [addPdf, setAddPdf] = useState<File | null>(null);
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  const [pdfUploadingId, setPdfUploadingId] = useState<number | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
+  const [pdfTargetId, setPdfTargetId] = useState<number | null>(null);
 
   const runFetch = useCallback(async (): Promise<AdminBooksPayload> => {
     const [books, categories] = await Promise.all([
@@ -137,6 +141,7 @@ export function AdminBooksPage() {
     setAddAuthor('');
     setAddCategoryId(null);
     setAddPrice('');
+    setAddPdf(null);
     setAddError(null);
     setAddOpen(true);
   }
@@ -149,14 +154,21 @@ export function AdminBooksPage() {
     if (!token || !title || !author || addCategoryId === null || !Number.isFinite(price) || price <= 0) {
       return;
     }
+    if (addPdf && addPdf.type !== 'application/pdf') {
+      setAddError('The reading file must be a PDF.');
+      return;
+    }
     setAddSaving(true);
     setAddError(null);
     try {
-      await apiPost<BookListItem>(
-        '/admin/books',
-        { title, author, categoryId: addCategoryId, price },
-        token,
-      );
+      const form = new FormData();
+      form.set('title', title);
+      form.set('author', author);
+      form.set('categoryId', String(addCategoryId));
+      form.set('price', String(price));
+      if (addPdf) form.set('pdf', addPdf);
+
+      await apiPostForm<BookListItem>('/admin/books', form, token);
       setAddOpen(false);
       toast.success('Book added to the catalog.');
       refresh();
@@ -175,6 +187,37 @@ export function AdminBooksPage() {
       },
       () => setFailed(true),
     );
+  }
+
+  function openPdfPicker(book: BookListItem) {
+    setPdfTargetId(book.id);
+    if (pdfInputRef.current) pdfInputRef.current.value = '';
+    pdfInputRef.current?.click();
+  }
+
+  async function handlePdfSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    const bookId = pdfTargetId;
+    setPdfTargetId(null);
+    if (!file || bookId === null || !token) return;
+
+    if (file.type !== 'application/pdf') {
+      toast.error('The reading file must be a PDF.');
+      return;
+    }
+
+    setPdfUploadingId(bookId);
+    try {
+      const form = new FormData();
+      form.set('pdf', file);
+      await apiPostForm<BookListItem>(`/admin/books/${bookId}/pdf`, form, token);
+      toast.success('PDF attached. Readers can now open it in the reader.');
+      refresh();
+    } catch (error) {
+      toast.error(`Unable to upload the PDF. ${friendlyError(error)}`);
+    } finally {
+      setPdfUploadingId(null);
+    }
   }
 
   async function removeBook(book: BookListItem) {
@@ -300,6 +343,7 @@ export function AdminBooksPage() {
               <span role="columnheader">Price</span>
               <span role="columnheader">Status</span>
               <span role="columnheader">Owner</span>
+              <span role="columnheader">PDF</span>
               <span className="abm-table__actions" role="columnheader">
                 Actions
               </span>
@@ -323,6 +367,20 @@ export function AdminBooksPage() {
                 </span>
                 <span role="cell">
                   {book.isCatalogue ? 'Catalogue' : `#${book.ownerId}`}
+                </span>
+                <span role="cell">
+                  <button
+                    type="button"
+                    className="dash-cta dash-cta--ghost dash-cta--small abm-remove"
+                    disabled={pdfUploadingId === book.id}
+                    onClick={() => openPdfPicker(book)}
+                  >
+                    {pdfUploadingId === book.id
+                      ? 'Uploading…'
+                      : book.pdfUrl
+                        ? 'Replace PDF'
+                        : 'Attach PDF'}
+                  </button>
                 </span>
                 <span className="abm-table__actions" role="cell">
                   {confirmingId === book.id ? (
@@ -348,6 +406,14 @@ export function AdminBooksPage() {
             ))}
           </div>
         )}
+
+        <input
+          ref={pdfInputRef}
+          type="file"
+          accept="application/pdf"
+          className="visually-hidden"
+          onChange={handlePdfSelected}
+        />
 
         <p className="abm-note" role="note">
           Book management writes are real catalog changes. Mock purchase and reading features
@@ -450,6 +516,22 @@ export function AdminBooksPage() {
                   onChange={(event) => setAddPrice(event.target.value)}
                   placeholder="Enter the selling price in INR"
                 />
+              </div>
+              <div className="bm-modal__field">
+                <label className="bm-modal__label" htmlFor="abm-add-pdf">
+                  Book PDF (optional)
+                </label>
+                <input
+                  id="abm-add-pdf"
+                  className="auth-input"
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(event) => setAddPdf(event.target.files?.[0] ?? null)}
+                />
+                <p className="bm-modal__hint">
+                  Upload the book as a PDF to let readers open it in the built-in reader.
+                  You can add or replace this later from the book&rsquo;s details.
+                </p>
               </div>
 
               {addError ? (

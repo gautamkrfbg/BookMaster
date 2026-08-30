@@ -13,8 +13,16 @@ namespace BookMaster.Api.Controllers;
 [Authorize(Roles = Roles.Admin)]
 public class AdminController : ControllerBase
 {
+    private static readonly string[] AllowedPdfContentTypes = { "application/pdf" };
+    private const long MaxPdfBytes = 10 * 1024 * 1024; // 10 MB
+
     private readonly AppDbContext _db;
-    public AdminController(AppDbContext db) => _db = db;
+    private readonly IWebHostEnvironment _env;
+    public AdminController(AppDbContext db, IWebHostEnvironment env)
+    {
+        _db = db;
+        _env = env;
+    }
 
     [HttpGet("stats")]
     public async Task<ActionResult<AdminStatsDto>> GetStats()
@@ -31,7 +39,8 @@ public class AdminController : ControllerBase
     }
 
     [HttpPost("books")]
-    public async Task<ActionResult<BookDto>> CreateBook(CreateAdminBookDto dto)
+    [RequestSizeLimit(MaxPdfBytes)]
+    public async Task<ActionResult<BookDto>> CreateBook([FromForm] CreateAdminBookForm dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Title)) return BadRequest("Title is required.");
         if (string.IsNullOrWhiteSpace(dto.Author)) return BadRequest("Author is required.");
@@ -42,6 +51,14 @@ public class AdminController : ControllerBase
         if (!await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId))
             return BadRequest("Category does not exist.");
 
+        string? pdfUrl = null;
+        if (dto.Pdf != null)
+        {
+            var validationError = ValidatePdf(dto.Pdf);
+            if (validationError != null) return BadRequest(validationError);
+            pdfUrl = await SavePdfAsync(dto.Pdf);
+        }
+
         var book = new Book
         {
             Title = dto.Title.Trim(),
@@ -50,10 +67,67 @@ public class AdminController : ControllerBase
             CategoryId = dto.CategoryId,
             Price = dto.Price,
             IsCatalogue = true,
-            Status = BookStatus.Owned
+            Status = BookStatus.Owned,
+            PdfUrl = pdfUrl
         };
         _db.Books.Add(book);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(BooksController.GetById), "Books", new { id = book.Id }, new BookDto(book.Id, book.Title, book.Author, book.OwnerId, book.CategoryId, book.Status, book.Price, book.IsCatalogue));
+        return CreatedAtAction(nameof(BooksController.GetById), "Books", new { id = book.Id }, new BookDto(book.Id, book.Title, book.Author, book.OwnerId, book.CategoryId, book.Status, book.Price, book.IsCatalogue, book.PdfUrl));
+    }
+
+    [HttpPost("books/{id}/pdf")]
+    [RequestSizeLimit(MaxPdfBytes)]
+    public async Task<ActionResult<BookDto>> UploadBookPdf(long id, IFormFile pdf)
+    {
+        var book = await _db.Books.FindAsync(id);
+        if (book == null) return NotFound();
+
+        var validationError = ValidatePdf(pdf);
+        if (validationError != null) return BadRequest(validationError);
+
+        DeletePdfIfExists(book.PdfUrl);
+        book.PdfUrl = await SavePdfAsync(pdf);
+        await _db.SaveChangesAsync();
+
+        return Ok(new BookDto(book.Id, book.Title, book.Author, book.OwnerId, book.CategoryId, book.Status, book.Price, book.IsCatalogue, book.PdfUrl));
+    }
+
+    private static string? ValidatePdf(IFormFile? pdf)
+    {
+        if (pdf == null || pdf.Length == 0) return "A PDF file is required.";
+        if (pdf.Length > MaxPdfBytes) return "The PDF must be smaller than 50 MB.";
+        if (!AllowedPdfContentTypes.Contains(pdf.ContentType) &&
+            !Path.GetExtension(pdf.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Only PDF files are allowed.";
+        }
+        return null;
+    }
+
+    private async Task<string> SavePdfAsync(IFormFile pdf)
+    {
+        var uploadsRoot = Path.Combine(_env.ContentRootPath, "uploads", "books");
+        Directory.CreateDirectory(uploadsRoot);
+
+        var fileName = $"{Guid.NewGuid():N}.pdf";
+        var fullPath = Path.Combine(uploadsRoot, fileName);
+
+        await using (var stream = System.IO.File.Create(fullPath))
+        {
+            await pdf.CopyToAsync(stream);
+        }
+
+        return $"/api/uploads/books/{fileName}";
+    }
+
+    private void DeletePdfIfExists(string? pdfUrl)
+    {
+        if (string.IsNullOrWhiteSpace(pdfUrl)) return;
+        var fileName = Path.GetFileName(pdfUrl);
+        var fullPath = Path.Combine(_env.ContentRootPath, "uploads", "books", fileName);
+        if (System.IO.File.Exists(fullPath))
+        {
+            System.IO.File.Delete(fullPath);
+        }
     }
 }

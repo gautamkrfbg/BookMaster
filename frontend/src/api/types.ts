@@ -22,6 +22,7 @@ export interface BookListItem {
   status: BookStatus;
   price: number;
   isCatalogue: boolean;
+  pdfUrl: string | null;
 }
 
 export interface CategoryItem {

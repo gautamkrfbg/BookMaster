@@ -30,7 +30,7 @@ public class BooksController : ControllerBase
             .OrderBy(b => b.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(b => new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue))
+            .Select(b => new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue, b.PdfUrl))
             .ToListAsync();
 
         return Ok(books);
@@ -41,7 +41,7 @@ public class BooksController : ControllerBase
     {
         var b = await _db.Books.FindAsync(id);
         if (b == null) return NotFound();
-        return Ok(new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue));
+        return Ok(new BookDto(b.Id, b.Title, b.Author, b.OwnerId, b.CategoryId, b.Status, b.Price, b.IsCatalogue, b.PdfUrl));
     }
 
     [HttpPost]
@@ -67,7 +67,7 @@ public class BooksController : ControllerBase
         };
         _db.Books.Add(book);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = book.Id }, new BookDto(book.Id, book.Title, book.Author, book.OwnerId, book.CategoryId, book.Status, book.Price, book.IsCatalogue));
+        return CreatedAtAction(nameof(GetById), new { id = book.Id }, new BookDto(book.Id, book.Title, book.Author, book.OwnerId, book.CategoryId, book.Status, book.Price, book.IsCatalogue, book.PdfUrl));
     }
 
     [HttpPost("{id}/acquire")]
@@ -91,11 +91,12 @@ public class BooksController : ControllerBase
             OwnerId = ownerId,
             CategoryId = catalogueBook.CategoryId,
             Price = catalogueBook.Price,
-            Status = BookStatus.Owned
+            Status = BookStatus.Owned,
+            PdfUrl = catalogueBook.PdfUrl
         };
         _db.Books.Add(copy);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = copy.Id }, new BookDto(copy.Id, copy.Title, copy.Author, copy.OwnerId, copy.CategoryId, copy.Status, copy.Price, copy.IsCatalogue));
+        return CreatedAtAction(nameof(GetById), new { id = copy.Id }, new BookDto(copy.Id, copy.Title, copy.Author, copy.OwnerId, copy.CategoryId, copy.Status, copy.Price, copy.IsCatalogue, copy.PdfUrl));
     }
 
     [HttpPut("{id}")]
