@@ -54,8 +54,8 @@ See `Api/schema.sql` (referenced in the README's Setup section) and
 
 ## Planned change
 
-The README notes MySQL is the current database, with a future migration to
+The README notes MySQL is the current database, with a future migration to 
 Microsoft SQL Server planned. When that happens, only the Api's EF Core
-provider and connection string need to change — the Mvc app and the
+provider and connection string need to change —- the Mvc app and the
 Docker/deployment setup in `DEPLOYMENT.md` are database-agnostic aside from
 the `mysql` service itself, which would be swapped for a `mssql` one.
